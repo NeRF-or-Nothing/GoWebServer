@@ -11,7 +11,9 @@ package web
 //     "strconv"
 //
 //
-// 
+//
+//
+//
 
 //     "github.com/gin-gonic/gin"
 //     "github.com/golang-jwt/jwt"
@@ -78,7 +80,6 @@ package web
 //             c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
 //             return
 //         }
-vidgonerf/webserver/internal/models/temp.go
 //         userID, ok := claims["sub"].(string)
 //         if !ok {
 //             c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID in token"})
