@@ -5,10 +5,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/NeRF-or-Nothing/VidGoNerf/tree/mainwebserver/internal/models"
-	"github.com/NeRF-or-Nothing/VidGoNerf/tree/mainwebserver/internal/services"
-	"github.com/NeRF-or-Nothing/VidGoNerf/tree/mainwebserver/internal/utils"
-	"github.com/NeRF-or-Nothing/VidGoNerf/tree/mainwebserver/internal/web"
+	"github.com/NeRF-or-Nothing/VidGoNerf/tree/main/webserver/internal/models"
+	"github.com/NeRF-or-Nothing/VidGoNerf/tree/main/webserver/internal/services"
+	"github.com/NeRF-or-Nothing/VidGoNerf/tree/main/webserver/internal/utils"
+	"github.com/NeRF-or-Nothing/VidGoNerf/tree/main/webserver/internal/web"
 	"github.com/joho/godotenv"
 )
 

@@ -1,3 +1,3 @@
-module github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models
+module github.com/NeRF-or-Nothing/VidGoNerf/tree/main/webserver/internal/models
 
 go 1.23
