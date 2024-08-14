@@ -5,12 +5,11 @@ import (
 	"log"
 	"os"
 
+	"github.com/NeRF-or-Nothing/VidGoNerf/tree/mainwebserver/internal/models"
+	"github.com/NeRF-or-Nothing/VidGoNerf/tree/mainwebserver/internal/services"
+	"github.com/NeRF-or-Nothing/VidGoNerf/tree/mainwebserver/internal/utils"
+	"github.com/NeRF-or-Nothing/VidGoNerf/tree/mainwebserver/internal/web"
 	"github.com/joho/godotenv"
-
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/utils"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/web"
 )
 
 func main() {
