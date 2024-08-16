@@ -1,9 +1,8 @@
-package managers
+package dbschema
 
 import (
 	"context"
 	"errors"
-	"os"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -11,16 +10,15 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+var (
+	ErrUserNotFound = errors.New("user not found")
+)
+
 type UserManager struct {
 	collection *mongo.Collection
 }
 
 func NewUserManager(client *mongo.Client, unittest bool) *UserManager {
-	mongoIP := "localhost"
-	if !unittest {
-		mongoIP = os.Getenv("MONGO_IP")
-	}
-
 	db := client.Database("nerfdb")
 	return &UserManager{
 		collection: db.Collection("users"),
@@ -99,18 +97,9 @@ func (um *UserManager) UserHasJobAccess(ctx context.Context, userID primitive.Ob
 		return false, err
 	}
 	for _, sceneID := range user.SceneIDs {
-		if sceneID == jobID {
+		if sceneID.Hex() == jobID {
 			return true, nil
 		}
 	}
 	return false, nil
-}
-
-func contains(slice []string, item string) bool {
-	for _, a := range slice {
-		if a == item {
-			return true
-		}
-	}
-	return false
 }

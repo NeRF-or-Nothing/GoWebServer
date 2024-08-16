@@ -6,6 +6,7 @@ import (
 
 func main() {
 	_ = godotenv.Load() // Just to ensure it's used
+
 }
 
 // import (

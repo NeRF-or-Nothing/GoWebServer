@@ -1,9 +1,8 @@
-package managers
+package dbschema
 
 import (
 	"context"
 	"errors"
-	"os"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -23,12 +22,18 @@ type QueueListManager struct {
 	queueNames []string
 }
 
-func NewQueueListManager(client *mongo.Client, unittest bool) *QueueListManager {
-	mongoIP := "localhost"
-	if !unittest {
-		mongoIP = os.Getenv("MONGO_IP")
-	}
 
+// contains checks if a string is in a slice of strings
+func contains(arr []string, str string) bool {
+	for _, a := range arr {
+		if a == str {
+			return true
+		}
+	}
+	return false
+}
+
+func NewQueueListManager(client *mongo.Client, unittest bool) *QueueListManager {
 	db := client.Database("nerfdb")
 	return &QueueListManager{
 		collection: db.Collection("queues"),
