@@ -18,7 +18,7 @@ func (u *User) AddScene(sceneID primitive.ObjectID) {
 	u.SceneIDs = append(u.SceneIDs, sceneID)
 }
 
-// SetPassword sets a new password for the user
+// SetPassword sets a new password for the user. Encrypts the password using bcrypt.
 func (u *User) SetPassword(password string) error {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {

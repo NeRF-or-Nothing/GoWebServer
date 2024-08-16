@@ -22,7 +22,6 @@ type QueueListManager struct {
 	queueNames []string
 }
 
-
 // contains checks if a string is in a slice of strings
 func contains(arr []string, str string) bool {
 	for _, a := range arr {

@@ -1,6 +1,10 @@
 package services
 
-import "mime/multipart"
+import (
+    "mime/multipart"
+    "github.com/your-project/models"
+    "github.com/your-project/services"
+)
 
 type ClientService struct {
     sceneManager  *models.SceneManager
