@@ -1,25 +1,31 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"strconv"
 
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/dbschema"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	// Internal imports
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/queue"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
+    "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
 )
 
 type WebServer struct {
     router        *gin.Engine
     clientService *services.ClientService
-    queueManager  *dbschema.QueueListManager
+    queueManager  *queue.QueueListManager
     jwtSecret     string
 }
 
-func NewWebServer(clientService *services.ClientService, queueManager *dbschema.QueueListManager, jwtSecret string) *WebServer {
+func NewWebServer(clientService *services.ClientService, queueManager *queue.QueueListManager, jwtSecret string) *WebServer {
     router := gin.Default()
     return &WebServer{
         router:        router,
@@ -29,8 +35,8 @@ func NewWebServer(clientService *services.ClientService, queueManager *dbschema.
     }
 }
 
-func (s *WebServer) Run(port int) error {
-    return s.router.Run(":" + strconv.Itoa(port))
+func (s *WebServer) Run(ip string, port int) error {
+    return s.router.Run(ip + ":" + strconv.Itoa(port))
 }
 
 func (s *WebServer) SetupRoutes() {
@@ -42,12 +48,14 @@ func (s *WebServer) SetupRoutes() {
     s.router.GET("/health", s.healthCheck)
     s.router.GET("/worker-data/*path", s.getWorkerData)
     s.router.GET("/data/metadata/:scene_id", s.tokenRequired(s.getNerfMetadata))
-    s.router.GET("/data/metadata/:output_type/:scene_id", s.tokenRequired(s.getNerfTypeMetadata))
     s.router.GET("/data/nerf/:output_type/:scene_id", s.tokenRequired(s.getNerfResource))
     s.router.GET("/preview/:scene_id", s.tokenRequired(s.getPreview))
     s.router.GET("/history", s.tokenRequired(s.getUserHistory))
 }
 
+// tokenRequired is a middleware that checks if a valid JWT token is present in the Authorization header.
+// If the token is valid, the user ID is extracted from the token and set in the context. 
+// If the token is invalid, a 401 Unauthorized response is returned.
 func (s *WebServer) tokenRequired(handler gin.HandlerFunc) gin.HandlerFunc {
     return func(c *gin.Context) {
         tokenString := c.GetHeader("Authorization")
@@ -81,14 +89,16 @@ func (s *WebServer) tokenRequired(handler gin.HandlerFunc) gin.HandlerFunc {
     }
 }
 
+// loginUser handles the login request. It delegates the login operation to the client service,
+// and if successful, generates a JWT token containing the user ID and returns it in the response.
 func (s *WebServer) loginUser(c *gin.Context) {
-    var req LoginRequest
+    var req common.LoginRequest
     if err := ValidateRequest(c, &req); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
-    userID, err := s.clientService.LoginUser(req.Username, req.Password)
+    userID, err := s.clientService.LoginUser(context.TODO(), req.Username, req.Password)
     if err != nil {
         c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
         return
@@ -108,14 +118,16 @@ func (s *WebServer) loginUser(c *gin.Context) {
     return
 }
 
+// registerUser handles the register request. It delegates the register operation to the client service,
+// and returns a 201 Created response if successful.
 func (s *WebServer) registerUser(c *gin.Context) {
-    var req RegisterRequest
+    var req common.RegisterRequest
     if err := ValidateRequest(c, &req); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
-    err := s.clientService.RegisterUser(req.Username, req.Password)
+    err := s.clientService.RegisterUser(context.TODO(), req.Username, req.Password)
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
@@ -124,32 +136,39 @@ func (s *WebServer) registerUser(c *gin.Context) {
     c.JSON(http.StatusCreated, gin.H{"message": "User created"})
 }
 
+// getNerfMetadata handles the request to get metadata about a scene. It delegates the operation to the client service,
+// and returns the metadata in the response if successful.
 func (s *WebServer) getNerfMetadata(c *gin.Context) {
-    var req GetNerfMetadataRequest
+    var req common.GetNerfMetadataRequest
     if err := ValidateRequest(c, &req); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
-    userID := c.GetString("userID")
-    response := s.clientService.GetNerfMetadata(userID, req.SceneID)
-    c.JSON(response.StatusCode, response)
-}
-
-func (s *WebServer) getNerfTypeMetadata(c *gin.Context) {
-    var req GetNerfTypeMetadataRequest
-    if err := ValidateRequest(c, &req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+    userID, err := primitive.ObjectIDFromHex(c.GetString("userID"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        return
+    }
+    sceneID, err := primitive.ObjectIDFromHex(req.SceneID)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
         return
     }
 
-    userID := c.GetString("userID")
-    response := s.clientService.GetNerfTypeMetadata(userID, req.SceneID, req.OutputType)
-    c.JSON(response.StatusCode, response)
+    metadata, err := s.clientService.GetNerfMetadata( context.TODO(), userID, sceneID, req.OutputType)
+
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    c.JSON(http.StatusOK, metadata)
 }
 
+// getNerfResource handles the request to get a resource for a scene. It delegates the operation to the client service,
+// and returns the resource in the response if successful. The resource is streamed back to the client, using the provided range header.
 func (s *WebServer) getNerfResource(c *gin.Context) {
-    var req GetNerfResourceRequest
+    var req common.GetNerfResourceRequest
     if err := ValidateRequest(c, &req); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
@@ -158,14 +177,14 @@ func (s *WebServer) getNerfResource(c *gin.Context) {
     userID := c.GetString("userID")
     rangeHeader := c.GetHeader("Range")
 
-    response := s.clientService.GetNerfResource(userID, req.SceneID, req.OutputType, req.Iteration, rangeHeader)
+    response := s.clientService.GetNerfResource(context.TODO(), userID, req.SceneID, req.OutputType, req.Iteration, rangeHeader)
     c.DataFromReader(response.StatusCode, response.ContentLength, response.ContentType, response.Body, nil)
 }
 
 func (s *WebServer) getUserHistory(c *gin.Context) {
     userID := c.GetString("userID")
 
-    response := s.clientService.GetUserHistory(userID)
+    response := s.clientService.GetUserHistory(context.TODO(), userID)
     c.JSON(response.StatusCode, response)
 }
 
@@ -188,12 +207,16 @@ func (s *WebServer) getPreview(c *gin.Context) {
     }
 
     userID := c.GetString("userID")
-    response := s.clientService.GetPreview(userID, req.SceneID)
+    response := s.clientService.GetPreview(context.TODO(), userID, req.SceneID)
     c.JSON(response.StatusCode, response)
 }
 
 func (s *WebServer) receiveVideo(c *gin.Context) {
-    userID := c.GetString("userID")
+    userID, err := primitive.ObjectIDFromHex(c.GetString("userID"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        return  
+    }
 
     req, err := ParseVideoUploadRequest(c)
     if err != nil {
@@ -201,7 +224,9 @@ func (s *WebServer) receiveVideo(c *gin.Context) {
         return
     }
 
-    scene_id, err := s.clientService.HandleIncomingVideo(userID, req.File, req, req.SceneName)
+
+
+    scene_id, err := s.clientService.HandleIncomingVideo(context.TODO(), userID, req)
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return

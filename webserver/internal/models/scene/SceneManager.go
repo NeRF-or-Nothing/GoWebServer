@@ -23,7 +23,7 @@ type SceneManager struct {
 	collection *mongo.Collection
 }
 
-func NewSceneManager(client *mongo.Client) *SceneManager {
+func NewSceneManager(client *mongo.Client, unittest bool) *SceneManager {
 	return &SceneManager{
 		collection: client.Database("nerfdb").Collection("scenes"),
 	}

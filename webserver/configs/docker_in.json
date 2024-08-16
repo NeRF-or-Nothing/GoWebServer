@@ -1,0 +1,5 @@
+{
+    "mongodomain": "mongodb",
+    "rabbitmqdomain": "rabbitmq",
+    "serverdomain": "0.0.0.0"
+}

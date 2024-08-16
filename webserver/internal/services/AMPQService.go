@@ -12,6 +12,7 @@ import (
 	"github.com/streadway/amqp"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	
+	// Internal imports
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/queue"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
 )
@@ -85,13 +86,13 @@ func (s *AMPQService) toURL(filePath string) string {
 	return s.baseURL + "worker-data/" + filePath
 }
 
-func (s *AMPQService) PublishSFMJob(ctx context.Context, id primitive.ObjectID, vid *dbschema.Video, config *dbschema.TrainingConfig) error {
+func (s *AMPQService) PublishSFMJob(ctx context.Context, id primitive.ObjectID, vid *scene.Video, config *scene.TrainingConfig) error {
 	job := map[string]interface{}{
 		"id":        id.Hex(),
 		"file_path": s.toURL(vid.FilePath),
 	}
 
-	for k, v := range config.SfmConfig {
+	for k, v := range config.SfmTrainingConfig {
 		job[k] = v
 	}
 

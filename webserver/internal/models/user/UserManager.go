@@ -16,7 +16,7 @@ type UserManager struct {
 }
 
 // NewUserManager creates a new instance of UserManager.
-func NewUserManager(client *mongo.Client) *UserManager {
+func NewUserManager(client *mongo.Client, unittest bool) *UserManager {
 	db := client.Database("nerfdb")
 	return &UserManager{
 		collection: db.Collection("users"),
