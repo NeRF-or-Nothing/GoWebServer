@@ -1,19 +1,14 @@
-// Package: webserver provides a (http only) web server that handles incoming requests and routes them to the
-// appropriate services. The web server is built using the Gin framework and provides a RESTful API
-// for interacting with the system. The web server is responsible for handling incoming video files,
-
 package web
 
 import (
     "net/http"
     "os"
-    "path/filepath"
     "strconv"
 
     "github.com/gin-gonic/gin"
     "github.com/golang-jwt/jwt"
-    "github.com/your-project/models"
-    "github.com/your-project/services"
+    "github.com/NeRF-Or-Nothing/VidGoNerf/webserver/internal/models"
+    "github.com/NeRF-Or-Nothing/VidGoNerf/webserver/internal/services"
 )
 
 type WebServer struct {
@@ -38,18 +33,18 @@ func (s *WebServer) Run(port int) error {
 }
 
 func (s *WebServer) SetupRoutes() {
-    s.router.POST("/video", s.tokenRequired(s.receiveVideo))
     s.router.POST("/login", s.loginUser)
     s.router.POST("/register", s.registerUser)
-    s.router.GET("/routes", s.sendRoutes)
-    s.router.GET("/data/metadata/:scene_id", s.tokenRequired(s.sendNerfMetadata))
-    s.router.GET("/data/metadata/:output_type/:scene_id", s.tokenRequired(s.sendNerfTypeMetadata))
-    s.router.GET("/data/nerf/:output_type/:scene_id", s.tokenRequired(s.sendNerfResource))
-    s.router.GET("/worker-data/*path", s.sendToWorker)
-    s.router.GET("/preview/:scene_id", s.tokenRequired(s.sendPreview))
-    s.router.GET("/queue", s.sendQueuePosition)
-    s.router.GET("/history", s.tokenRequired(s.sendUserHistory))
+    s.router.POST("/video", s.tokenRequired(s.receiveVideo))
+    s.router.GET("/routes", s.getRoutes)
+    s.router.GET("/queue", s.getQueuePosition)
     s.router.GET("/health", s.healthCheck)
+    s.router.GET("/worker-data/*path", s.getWorkerData)
+    s.router.GET("/data/metadata/:scene_id", s.tokenRequired(s.getNerfMetadata))
+    s.router.GET("/data/metadata/:output_type/:scene_id", s.tokenRequired(s.getNerfTypeMetadata))
+    s.router.GET("/data/nerf/:output_type/:scene_id", s.tokenRequired(s.getNerfResource))
+    s.router.GET("/preview/:scene_id", s.tokenRequired(s.getPreview))
+    s.router.GET("/history", s.tokenRequired(s.getUserHistory))
 }
 
 func (s *WebServer) tokenRequired(handler gin.HandlerFunc) gin.HandlerFunc {
@@ -85,42 +80,74 @@ func (s *WebServer) tokenRequired(handler gin.HandlerFunc) gin.HandlerFunc {
     }
 }
 
-func (s *WebServer) sendNerfMetadata(c *gin.Context) {
-    userID := c.GetString("userID")
-    sceneID := c.Param("scene_id")
+func (s *WebServer) loginUser(c *gin.Context) {
+    var req LoginRequest
+    if err := ValidateRequest(c, &req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-    response := s.clientService.GetNerfMetadata(userID, sceneID)
+    response := s.clientService.LoginUser(req.Username, req.Password)
     c.JSON(response.StatusCode, response)
 }
 
-func (s *WebServer) sendNerfTypeMetadata(c *gin.Context) {
-    userID := c.GetString("userID")
-    outputType := c.Param("output_type")
-    sceneID := c.Param("scene_id")
+func (s *WebServer) registerUser(c *gin.Context) {
+    var req RegisterRequest
+    if err := ValidateRequest(c, &req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-    response := s.clientService.GetNerfTypeMetadata(userID, sceneID, outputType)
+    response := s.clientService.RegisterUser(req.Username, req.Password)
     c.JSON(response.StatusCode, response)
 }
 
-func (s *WebServer) sendNerfResource(c *gin.Context) {
+func (s *WebServer) getNerfMetadata(c *gin.Context) {
+    var req GetNerfMetadataRequest
+    if err := ValidateRequest(c, &req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
     userID := c.GetString("userID")
-    outputType := c.Param("output_type")
-    sceneID := c.Param("scene_id")
-    iteration := c.Query("iteration")
+    response := s.clientService.GetNerfMetadata(userID, req.SceneID)
+    c.JSON(response.StatusCode, response)
+}
+
+func (s *WebServer) getNerfTypeMetadata(c *gin.Context) {
+    var req GetNerfTypeMetadataRequest
+    if err := ValidateRequest(c, &req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    userID := c.GetString("userID")
+    response := s.clientService.GetNerfTypeMetadata(userID, req.SceneID, req.OutputType)
+    c.JSON(response.StatusCode, response)
+}
+
+func (s *WebServer) getNerfResource(c *gin.Context) {
+    var req GetNerfResourceRequest
+    if err := ValidateRequest(c, &req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    userID := c.GetString("userID")
     rangeHeader := c.GetHeader("Range")
 
-    response := s.clientService.SendNerfResource(userID, sceneID, outputType, iteration, rangeHeader)
+    response := s.clientService.getNerfResource(userID, req.SceneID, req.OutputType, req.Iteration, rangeHeader)
     c.DataFromReader(response.StatusCode, response.ContentLength, response.ContentType, response.Body, nil)
 }
 
-func (s *WebServer) sendUserHistory(c *gin.Context) {
+func (s *WebServer) getUserHistory(c *gin.Context) {
     userID := c.GetString("userID")
 
     response := s.clientService.GetUserHistory(userID)
     c.JSON(response.StatusCode, response)
 }
 
-func (s *WebServer) sendToWorker(c *gin.Context) {
+func (s *WebServer) getWorkerData(c *gin.Context) {
     path := c.Param("path")
 
     if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -131,31 +158,28 @@ func (s *WebServer) sendToWorker(c *gin.Context) {
     c.File(path)
 }
 
-func (s *WebServer) sendPreview(c *gin.Context) {
-    userID := c.GetString("userID")
-    scene_id := c.Param("scene_id")
+func (s *WebServer) getPreview(c *gin.Context) {
+    var req GetPreviewRequest
+    if err := ValidateRequest(c, &req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-    response := s.clientService.GetPreview(userID, scene_id)
+    userID := c.GetString("userID")
+    response := s.clientService.GetPreview(userID, req.SceneID)
     c.JSON(response.StatusCode, response)
 }
 
 func (s *WebServer) receiveVideo(c *gin.Context) {
     userID := c.GetString("userID")
 
-    file, err := c.FormFile("file")
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "No file part in the request"})
-        return
-    }
-
-    config, err := validateRequestParams(c)
+    req, err := ParseVideoUploadRequest(c)
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
-    sceneName := c.PostForm("scene_name")
-    scene_id, err := s.clientService.HandleIncomingVideo(userID, file, config, sceneName)
+    scene_id, err := s.clientService.HandleIncomingVideo(userID, req.File, req, req.SceneName)
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
@@ -166,48 +190,25 @@ func (s *WebServer) receiveVideo(c *gin.Context) {
         Error:   models.NoError,
         Message: "Video received and processing. Check back later for updates.",
         UUID:    scene_id,
-        Data:    config,
+        Data:    req,
     }
     c.JSON(http.StatusOK, response)
 }
 
-func (s *WebServer) loginUser(c *gin.Context) {
-    username := c.PostForm("username")
-    password := c.PostForm("password")
-
-    if username == "" || password == "" {
-        response := models.Response{
-            Status:  models.Error,
-            Error:   models.InvalidCredentials,
-            Message: "Username or password not provided",
-        }
-        c.JSON(http.StatusBadRequest, response)
+func (s *WebServer) getQueuePosition(c *gin.Context) {
+    var req GetQueuePositionRequest
+    if err := ValidateRequest(c, &req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
-    response := s.clientService.LoginUser(username, password)
-    c.JSON(response.StatusCode, response)
-}
-
-func (s *WebServer) registerUser(c *gin.Context) {
-    username := c.PostForm("username")
-    password := c.PostForm("password")
-
-    response := s.clientService.RegisterUser(username, password)
-    c.JSON(response.StatusCode, response)
-}
-
-func (s *WebServer) sendQueuePosition(c *gin.Context) {
-    queueID := c.Query("queueid")
-    taskID := c.Query("id")
-
-    position := s.queueManager.GetQueuePosition(queueID, taskID)
-    size := s.queueManager.GetQueueSize(queueID)
+    position := s.queueManager.GetQueuePosition(req.QueueID, req.TaskID)
+    size := s.queueManager.GetQueueSize(req.QueueID)
 
     c.String(http.StatusOK, "%d / %d", position, size)
 }
 
-func (s *WebServer) sendRoutes(c *gin.Context) {
+func (s *WebServer) getRoutes(c *gin.Context) {
     routes := make([]gin.RouteInfo, 0)
     for _, route := range s.router.Routes() {
         routes = append(routes, route)

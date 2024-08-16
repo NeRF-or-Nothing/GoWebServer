@@ -12,23 +12,23 @@ import (
 	"github.com/streadway/amqp"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"github.com/NeRF-Or-Nothing/VidGoNerf/webserver/internal/dbschema"
-	"your-project-path/dbschema/managers"
 )
 
-type RabbitMQServiceV2 struct {
-	logger        *log.Logger
-	rabbitMQDomain string
-	queueManager   *managers.QueueListManager
-	sceneManager   *managers.SceneManager
-	baseURL        string
-	connection     *amqp.Connection
-	channel        *amqp.Channel
+type AMPQService struct {
+	logger        		*log.Logger
+	baseURL        		string
+	messageBrokerDomain string
+	queueManager   		*dbschema.QueueListManager
+	sceneManager   		*dbschema.SceneManager
+	connection     		*amqp.Connection
+	channel        		*amqp.Channel
 }
 
-func NewRabbitMQServiceV2(rabbitMQDomain string, queueManager *managers.QueueListManager, sceneManager *managers.SceneManager) (*RabbitMQServiceV2, error) {
-	service := &RabbitMQServiceV2{
-		logger:         log.New(os.Stdout, "RabbitMQServiceV2: ", log.LstdFlags),
-		rabbitMQDomain: rabbitMQDomain,
+// Starts a new AMPQService instance as goroutine
+func NewAMPQService(messageBrokerDomain string, queueManager *dbschema.QueueListManager, sceneManager *dbschema.SceneManager) (*AMPQService, error) {
+	service := &AMPQService{
+		logger:         log.New(os.Stdout, "AMPQService: ", log.LstdFlags),
+		messageBrokerDomain: messageBrokerDomain,
 		queueManager:   queueManager,
 		sceneManager:   sceneManager,
 		baseURL:        "https://host.docker.internal:5000/",
@@ -44,7 +44,7 @@ func NewRabbitMQServiceV2(rabbitMQDomain string, queueManager *managers.QueueLis
 	return service, nil
 }
 
-func (s *RabbitMQServiceV2) connect() error {
+func (s *AMPQService) connect() error {
 	timeout := time.Now().Add(2 * time.Minute)
 	var err error
 
@@ -52,7 +52,7 @@ func (s *RabbitMQServiceV2) connect() error {
 		s.connection, err = amqp.Dial(fmt.Sprintf("amqp://%s:%s@%s:5672/", 
 			os.Getenv("RABBITMQ_DEFAULT_USER"), 
 			os.Getenv("RABBITMQ_DEFAULT_PASS"), 
-			s.rabbitMQDomain))
+			s.messageBrokerDomain))
 		if err == nil {
 			break
 		}
@@ -79,11 +79,11 @@ func (s *RabbitMQServiceV2) connect() error {
 	return nil
 }
 
-func (s *RabbitMQServiceV2) toURL(filePath string) string {
+func (s *AMPQService) toURL(filePath string) string {
 	return s.baseURL + "worker-data/" + filePath
 }
 
-func (s *RabbitMQServiceV2) PublishSFMJob(ctx context.Context, id primitive.ObjectID, vid *dbschema.Video, config *dbschema.TrainingConfig) error {
+func (s *AMPQService) PublishSFMJob(ctx context.Context, id primitive.ObjectID, vid *dbschema.Video, config *dbschema.TrainingConfig) error {
 	job := map[string]interface{}{
 		"id":        id.Hex(),
 		"file_path": s.toURL(vid.FilePath),
@@ -120,7 +120,7 @@ func (s *RabbitMQServiceV2) PublishSFMJob(ctx context.Context, id primitive.Obje
 	return nil
 }
 
-func (s *RabbitMQServiceV2) PublishNERFJob(ctx context.Context, id primitive.ObjectID, vid *dbschema.Video, sfm *dbschema.Sfm, config *dbschema.TrainingConfig) error {
+func (s *AMPQService) PublishNERFJob(ctx context.Context, id primitive.ObjectID, vid *dbschema.Video, sfm *dbschema.Sfm, config *dbschema.TrainingConfig) error {
 	job := map[string]interface{}{
 		"id":         id.Hex(),
 		"vid_width":  vid.Width,
@@ -162,12 +162,12 @@ func (s *RabbitMQServiceV2) PublishNERFJob(ctx context.Context, id primitive.Obj
 	return nil
 }
 
-func (s *RabbitMQServiceV2) startConsumers() {
+func (s *AMPQService) startConsumers() {
 	go s.consumeSFMOut()
 	go s.consumeNERFOut()
 }
 
-func (s *RabbitMQServiceV2) consumeSFMOut() {
+func (s *AMPQService) consumeSFMOut() {
 	messages, err := s.channel.Consume("sfm-out", "", false, false, false, false, nil)
 	if err != nil {
 		s.logger.Printf("Failed to register a consumer: %v", err)
@@ -185,7 +185,7 @@ func (s *RabbitMQServiceV2) consumeSFMOut() {
 	}
 }
 
-func (s *RabbitMQServiceV2) processSFMJob(msg amqp.Delivery) error {
+func (s *AMPQService) processSFMJob(msg amqp.Delivery) error {
 	var sfmData map[string]interface{}
 	err := json.Unmarshal(msg.Body, &sfmData)
 	if err != nil {
@@ -257,17 +257,17 @@ func (s *RabbitMQServiceV2) processSFMJob(msg amqp.Delivery) error {
 			return fmt.Errorf("failed to pop from queue_list: %v", err)
 		}
 
-		nerf := dbschema.NerfV2{Flag: flag}
-		err = s.sceneManager.SetNerfV2(ctx, id, &nerf)
+		nerf := dbschema.Nerf{Flag: flag}
+		err = s.sceneManager.SetNerf(ctx, id, &nerf)
 		if err != nil {
-			return fmt.Errorf("failed to set NerfV2: %v", err)
+			return fmt.Errorf("failed to set Nerf: %v", err)
 		}
 	}
 
 	return nil
 }
 
-func (s *RabbitMQServiceV2) consumeNERFOut() {
+func (s *AMPQService) consumeNERFOut() {
 	messages, err := s.channel.Consume("nerf-out", "", false, false, false, false, nil)
 	if err != nil {
 		s.logger.Printf("Failed to register a consumer: %v", err)
@@ -285,7 +285,7 @@ func (s *RabbitMQServiceV2) consumeNERFOut() {
 	}
 }
 
-func (s *RabbitMQServiceV2) processNERFJob(msg amqp.Delivery) error {
+func (s *AMPQService) processNERFJob(msg amqp.Delivery) error {
 	var nerfData map[string]interface{}
 	err := json.Unmarshal(msg.Body, &nerfData)
 	if err != nil {
@@ -295,10 +295,10 @@ func (s *RabbitMQServiceV2) processNERFJob(msg amqp.Delivery) error {
 	id := nerfData["id"].(string)
 	ctx := context.Background()
 
-	nerf, err := s.sceneManager.GetNerfV2(ctx, id)
+	nerf, err := s.sceneManager.GetNerf(ctx, id)
 	if err != nil {
 		s.logger.Printf("Could not find nerf object for id %s, creating a new one", id)
-		nerf = &dbschema.NerfV2{}
+		nerf = &dbschema.Nerf{}
 	}
 
 	outputEndpoints := nerfData["output_endpoints"].(map[string]interface{})
@@ -336,9 +336,9 @@ func (s *RabbitMQServiceV2) processNERFJob(msg amqp.Delivery) error {
 
 	nerf.Flag = 0
 
-	err = s.sceneManager.SetNerfV2(ctx, id, nerf)
+	err = s.sceneManager.SetNerf(ctx, id, nerf)
 	if err != nil {
-		return fmt.Errorf("failed to set NerfV2: %v", err)
+		return fmt.Errorf("failed to set Nerf: %v", err)
 	}
 
 	err = s.queueManager.PopQueue(ctx, "nerf_list", id)
@@ -354,7 +354,7 @@ func (s *RabbitMQServiceV2) processNERFJob(msg amqp.Delivery) error {
 	return nil
 }
 
-func (s *RabbitMQServiceV2) getExtensionForType(endpointType string) string {
+func (s *AMPQService) getExtensionForType(endpointType string) string {
 	switch endpointType {
 	case "splat_cloud":
 		return "splat"

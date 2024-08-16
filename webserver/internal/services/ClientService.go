@@ -2,17 +2,17 @@ package services
 
 import (
     "mime/multipart"
-    "github.com/your-project/models"
-    "github.com/your-project/services"
+    "github.com/NeRF-Or-Nothing/VidGoNerf/webserver/internal/models"
+    "github.com/NeRF-Or-Nothing/VidGoNerf/webserver/internal/services"
 )
 
 type ClientService struct {
     sceneManager  *models.SceneManager
-    rmqService    *RabbitMQService
+    rmqService    *services.AMPQService
     userManager   *models.UserManager
 }
 
-func NewClientService(sceneManager *models.SceneManager, rmqService *RabbitMQService, userManager *models.UserManager) *ClientService {
+func NewClientService(sceneManager *models.SceneManager, rmqService *AMPQService, userManager *models.UserManager) *ClientService {
     return &ClientService{
         sceneManager: sceneManager,
         rmqService:   rmqService,
@@ -38,7 +38,7 @@ func (s *ClientService) HandleIncomingVideo(userID string, videoFile *multipart.
 
 }
 
-func (s *ClientService) SendNerfResource(userID, uuid, resourceType, iteration, rangeHeader string) *models.FileResponse {
+func (s *ClientService) GetNerfResource(userID, uuid, resourceType, iteration, rangeHeader string) *models.FileResponse {
 
 }
 
