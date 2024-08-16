@@ -11,7 +11,7 @@ import (
     "github.com/gin-gonic/gin"
     "github.com/go-playground/validator/v10"
 
-    "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/dbschema"
+    "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
 )
 
 var validate *validator.Validate
@@ -24,7 +24,7 @@ func init() {
 func validateOutputType(fl validator.FieldLevel) bool {
     outputType := fl.Field().String()
     trainingMode := fl.Parent().FieldByName("TrainingMode").String()
-    return dbschema.Nerf{}.IsValidOutputType(trainingMode, outputType)
+    return scene.Nerf{}.IsValidOutputType(trainingMode, outputType)
 }
 
 type LoginRequest struct {

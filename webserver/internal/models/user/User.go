@@ -9,6 +9,7 @@ import (
 
 var (
 	ErrUserNotFound = errors.New("user not found")
+	ErrUsernameTaken = errors.New("username is already taken")
 	ErrUserNoAccess = errors.New("user does not have access to this scene")
 )
 

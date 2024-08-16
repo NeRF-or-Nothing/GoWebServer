@@ -115,8 +115,13 @@ func (s *WebServer) registerUser(c *gin.Context) {
         return
     }
 
-    response := s.clientService.RegisterUser(req.Username, req.Password)
-    c.JSON(response.StatusCode, response)
+    err := s.clientService.RegisterUser(req.Username, req.Password)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusCreated, gin.H{"message": "User created"})
 }
 
 func (s *WebServer) getNerfMetadata(c *gin.Context) {

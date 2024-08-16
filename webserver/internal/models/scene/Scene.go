@@ -1,16 +1,27 @@
 package scene
 
 import (
+	"strconv"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// Nerf represents the finished nerf training
-type Nerf struct {
-	ModelFilePathsMap      map[int]string `bson:"model_file_paths,omitempty"`
-	SplatCloudFilePathsMap map[int]string `bson:"splat_cloud_file_paths,omitempty"`
-	PointCloudFilePathsMap map[int]string `bson:"point_cloud_file_paths,omitempty"`
-	VideoFilePathsMap      map[int]string `bson:"video_file_paths,omitempty"`
-	Flag                   int            `bson:"flag"`
+// TrainingConfig represents the configuration for training
+type TrainingConfig struct {
+	SfmTrainingConfig  *SfmTrainingConfig  `bson:"sfm_training_config,omitempty"`
+	NerfTrainingConfig *NerfTrainingConfig `bson:"nerf_training_config,omitempty"`
+}
+
+// NerfTrainingConfig represents the configuration for NeRF training
+type NerfTrainingConfig struct {
+	TrainingMode    string   `bson:"training_mode"`
+	OutputTypes     []string `bson:"output_types"`
+	SaveIterations  []int    `bson:"save_iterations"`
+	TotalIterations int      `bson:"total_iterations"`
+}
+
+// SfmTrainingConfig represents the configuration for SfM training
+type SfmTrainingConfig struct {
 }
 
 // Frame represents a single frame in the SfM process
@@ -36,12 +47,6 @@ type Video struct {
 	FrameCount int    `bson:"frame_count"`
 }
 
-// TrainingConfig represents the configuration for training
-type TrainingConfig struct {
-	SfmConfig  map[string]interface{} `bson:"sfm_config"`
-	NerfConfig map[string]interface{} `bson:"nerf_config"`
-}
-
 // Scene represents a complete scene with all its components
 type Scene struct {
 	ID     primitive.ObjectID `bson:"_id,omitempty"`
@@ -50,6 +55,15 @@ type Scene struct {
 	Sfm    *Sfm               `bson:"sfm,omitempty"`
 	Nerf   *Nerf              `bson:"nerf,omitempty"`
 	Config *TrainingConfig    `bson:"config,omitempty"`
+}
+
+// Nerf represents the finished nerf training
+type Nerf struct {
+	ModelFilePathsMap      map[int]string `bson:"model_file_paths,omitempty"`
+	SplatCloudFilePathsMap map[int]string `bson:"splat_cloud_file_paths,omitempty"`
+	PointCloudFilePathsMap map[int]string `bson:"point_cloud_file_paths,omitempty"`
+	VideoFilePathsMap      map[int]string `bson:"video_file_paths,omitempty"`
+	Flag                   int            `bson:"flag"`
 }
 
 // Constants for valid training modes and output types
@@ -67,7 +81,7 @@ var (
 )
 
 // IsValidTrainingMode checks if the given training mode is valid
-func IsValidTrainingMode(mode string) bool {
+func (Nerf) IsValidTrainingMode(mode string) bool {
 	for _, validMode := range ValidTrainingModes {
 		if mode == validMode {
 			return true
@@ -77,7 +91,7 @@ func IsValidTrainingMode(mode string) bool {
 }
 
 // IsValidOutputType checks if the given output type is valid for the specified training mode
-func IsValidOutputType(trainingMode, outputType string) bool {
+func (Nerf) IsValidOutputType(trainingMode, outputType string) bool {
 	validTypes, ok := ValidOutputTypes[trainingMode]
 	if !ok {
 		return false
@@ -88,4 +102,30 @@ func IsValidOutputType(trainingMode, outputType string) bool {
 		}
 	}
 	return false
+}
+
+// ConvertIntKeysToString converts a map with integer keys to a map with string keys.
+// Used to convert the file paths map to a map that can be returned as JSON.
+func ConvertIntKeysToString(m map[int]string) map[string]string {
+	result := make(map[string]string)
+	for k, v := range m {
+		result[strconv.Itoa(k)] = v
+	}
+	return result
+}
+
+// GetFilePathsForOutputType returns the file paths for a single given output type.\
+func (n *Nerf) GetFilePathsForOutputType(outputType string) map[string]string {
+	switch outputType {
+	case "model":
+		return ConvertIntKeysToString(n.ModelFilePathsMap)
+	case "splat_cloud":
+		return ConvertIntKeysToString(n.SplatCloudFilePathsMap)
+	case "point_cloud":
+		return ConvertIntKeysToString(n.PointCloudFilePathsMap)
+	case "video":
+		return ConvertIntKeysToString(n.VideoFilePathsMap)
+	default:
+		return make(map[string]string)
+	}
 }
