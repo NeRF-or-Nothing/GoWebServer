@@ -1,4 +1,4 @@
-package dbschema
+package queue
 
 import (
 	"context"
@@ -9,13 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var (
-	ErrInvalidQueueID     = errors.New("not a valid queue ID")
-	ErrIDAlreadyInQueue   = errors.New("ID is already in the queue")
-	ErrIDNotFoundInQueue  = errors.New("ID not found in queue")
-	ErrMultipleIDsInQueue = errors.New("same ID found multiple times in queue")
-	ErrQueueEmpty         = errors.New("queue is empty")
-)
+
 
 type QueueListManager struct {
 	collection *mongo.Collection

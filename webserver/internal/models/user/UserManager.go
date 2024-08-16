@@ -1,4 +1,4 @@
-package dbschema
+package user
 
 import (
 	"context"
@@ -10,9 +10,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var (
-	ErrUserNotFound = errors.New("user not found")
-)
 
 type UserManager struct {
 	collection *mongo.Collection

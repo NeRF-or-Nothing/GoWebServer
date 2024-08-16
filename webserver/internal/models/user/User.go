@@ -1,9 +1,17 @@
-package dbschema
+package user
 
 import (
+	"errors"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 )
+
+var (
+	ErrUserNotFound = errors.New("user not found")
+	ErrUserNoAccess = errors.New("user does not have access to this scene")
+)
+
 
 // User represents a user in the system
 type User struct {
@@ -28,8 +36,9 @@ func (u *User) SetPassword(password string) error {
 	return nil
 }
 
-// CheckPassword verifies if the provided password is correct
-func (u *User) CheckPassword(password string) bool {
+// CheckPassword verifies if the provided password is correct.
+// Returns nil on success, or error on failure
+func (u *User) CheckPassword(password string) error {
 	err := bcrypt.CompareHashAndPassword([]byte(u.EncryptedPassword), []byte(password))
-	return err == nil
+	return err
 }

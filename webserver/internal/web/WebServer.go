@@ -1,24 +1,25 @@
 package web
 
 import (
-    "net/http"
-    "os"
-    "strconv"
+	"fmt"
+	"net/http"
+	"os"
+	"strconv"
 
-    "github.com/gin-gonic/gin"
-    "github.com/golang-jwt/jwt"
-    "github.com/NeRF-Or-Nothing/VidGoNerf/webserver/internal/models"
-    "github.com/NeRF-Or-Nothing/VidGoNerf/webserver/internal/services"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/dbschema"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
 )
 
 type WebServer struct {
     router        *gin.Engine
     clientService *services.ClientService
-    queueManager  *services.QueueListManager
+    queueManager  *dbschema.QueueListManager
     jwtSecret     string
 }
 
-func NewWebServer(clientService *services.ClientService, queueManager *services.QueueListManager, jwtSecret string) *WebServer {
+func NewWebServer(clientService *services.ClientService, queueManager *dbschema.QueueListManager, jwtSecret string) *WebServer {
     router := gin.Default()
     return &WebServer{
         router:        router,
@@ -87,8 +88,24 @@ func (s *WebServer) loginUser(c *gin.Context) {
         return
     }
 
-    response := s.clientService.LoginUser(req.Username, req.Password)
-    c.JSON(response.StatusCode, response)
+    userID, err := s.clientService.LoginUser(req.Username, req.Password)
+    if err != nil {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+        return
+    }
+
+    // Generate JWT token contianing user ID
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+        "sub": userID,
+    })
+    tokenString, err := token.SignedString([]byte(s.jwtSecret))
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+        return
+    }
+    
+    c.JSON(http.StatusOK, gin.H{"jwtToken": tokenString})
+    return
 }
 
 func (s *WebServer) registerUser(c *gin.Context) {
@@ -136,7 +153,7 @@ func (s *WebServer) getNerfResource(c *gin.Context) {
     userID := c.GetString("userID")
     rangeHeader := c.GetHeader("Range")
 
-    response := s.clientService.getNerfResource(userID, req.SceneID, req.OutputType, req.Iteration, rangeHeader)
+    response := s.clientService.GetNerfResource(userID, req.SceneID, req.OutputType, req.Iteration, rangeHeader)
     c.DataFromReader(response.StatusCode, response.ContentLength, response.ContentType, response.Body, nil)
 }
 
@@ -185,14 +202,8 @@ func (s *WebServer) receiveVideo(c *gin.Context) {
         return
     }
 
-    response := models.Response{
-        Status:  models.Processing,
-        Error:   models.NoError,
-        Message: "Video received and processing. Check back later for updates.",
-        UUID:    scene_id,
-        Data:    req,
-    }
-    c.JSON(http.StatusOK, response)
+    // TODO: Fix
+    c.JSON(http.StatusOK, fmt.Sprintf("Video received and processing scene %s. Check back later for updates.", &scene_id))
 }
 
 func (s *WebServer) getQueuePosition(c *gin.Context) {
@@ -202,8 +213,8 @@ func (s *WebServer) getQueuePosition(c *gin.Context) {
         return
     }
 
-    position := s.queueManager.GetQueuePosition(req.QueueID, req.TaskID)
-    size := s.queueManager.GetQueueSize(req.QueueID)
+    position := s.queueManager.getQueuePosition(req.QueueID, req.TaskID)
+    size := s.queueManager.getQueueSize(req.QueueID)
 
     c.String(http.StatusOK, "%d / %d", position, size)
 }

@@ -11,21 +11,23 @@ import (
 
 	"github.com/streadway/amqp"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"github.com/NeRF-Or-Nothing/VidGoNerf/webserver/internal/dbschema"
+	
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/queue"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
 )
 
 type AMPQService struct {
 	logger        		*log.Logger
 	baseURL        		string
 	messageBrokerDomain string
-	queueManager   		*dbschema.QueueListManager
-	sceneManager   		*dbschema.SceneManager
+	queueManager   		*queue.QueueListManager
+	sceneManager   		*scene.SceneManager
 	connection     		*amqp.Connection
 	channel        		*amqp.Channel
 }
 
 // Starts a new AMPQService instance as goroutine
-func NewAMPQService(messageBrokerDomain string, queueManager *dbschema.QueueListManager, sceneManager *dbschema.SceneManager) (*AMPQService, error) {
+func NewAMPQService(messageBrokerDomain string, queueManager *queue.QueueListManager, sceneManager *scene.SceneManager) (*AMPQService, error) {
 	service := &AMPQService{
 		logger:         log.New(os.Stdout, "AMPQService: ", log.LstdFlags),
 		messageBrokerDomain: messageBrokerDomain,
