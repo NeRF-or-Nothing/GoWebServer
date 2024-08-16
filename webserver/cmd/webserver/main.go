@@ -1,22 +1,11 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/joho/godotenv"
-
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/utils"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/web"
 )
 
 func main() {
 	_ = godotenv.Load() // Just to ensure it's used
-	fmt.Println(models.Temp{Temp: "test"})
-	fmt.Println(services.Temp{Temp: "test"})
-	fmt.Println(utils.Temp{Temp: "test"})
-	fmt.Println(web.Temp{Temp: "test"})
 }
 
 // import (
