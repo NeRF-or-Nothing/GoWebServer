@@ -1,6 +1,8 @@
 package common
 
-import "net/http"
+import (
+	"mime/multipart"
+)
 
 type LoginRequest struct {
     Username string `form:"username" binding:"required"`
@@ -13,7 +15,7 @@ type RegisterRequest struct {
 }
 
 type VideoUploadRequest struct {
-    File           *http.File `form:"file" binding:"required"`
+    File           *multipart.FileHeader `form:"file" binding:"required"`
     TrainingMode   string     `form:"training_mode" binding:"required,oneof=gaussian tensorf"`
     OutputTypes    []string   `form:"output_types" binding:"required,dive,validOutputType"`
     SaveIterations []int      `form:"save_iterations" binding:"required,dive,min=1,max=30000"`

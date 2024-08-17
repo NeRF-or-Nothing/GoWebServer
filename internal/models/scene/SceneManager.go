@@ -8,24 +8,28 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 )
 
 // Custom errors
 var (
-	ErrSceneNotFound       = errors.New("scene not found")
-	ErrVideoNotFound       = errors.New("video not found")
-	ErrSfmNotFound         = errors.New("sfm not found")
-	ErrNerfNotFound        = errors.New("nerf not found")
+	ErrSceneNotFound          = errors.New("scene not found")
+	ErrVideoNotFound          = errors.New("video not found")
+	ErrSfmNotFound            = errors.New("sfm not found")
+	ErrNerfNotFound           = errors.New("nerf not found")
 	ErrTrainingConfigNotFound = errors.New("training config not found")
 )
 
 type SceneManager struct {
 	collection *mongo.Collection
+	logger     *log.Logger
 }
 
-func NewSceneManager(client *mongo.Client, unittest bool) *SceneManager {
+func NewSceneManager(client *mongo.Client, logger *log.Logger, unittest bool) *SceneManager {
 	return &SceneManager{
 		collection: client.Database("nerfdb").Collection("scenes"),
+		logger:     logger,
 	}
 }
 

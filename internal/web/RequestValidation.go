@@ -12,7 +12,7 @@ import (
 
     
     "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
-    "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common/requests"
+    "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
 )
 
 var validate *validator.Validate
@@ -36,8 +36,8 @@ func ValidateRequest(c *gin.Context, req interface{}) error {
     return validate.Struct(req)
 }
 
-func ParseVideoUploadRequest(c *gin.Context) (*requests.VideoUploadRequest, error) {
-    var req requests.VideoUploadRequest
+func ParseVideoUploadRequest(c *gin.Context) (*common.VideoUploadRequest, error) {
+    var req common.VideoUploadRequest
 
     if err := c.ShouldBind(&req); err != nil {
         return nil, err

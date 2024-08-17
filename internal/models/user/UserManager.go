@@ -3,23 +3,27 @@ package user
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-)
 
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
+)
 
 type UserManager struct {
 	collection *mongo.Collection
+	logger     *log.Logger
 }
 
 // NewUserManager creates a new instance of UserManager.
-func NewUserManager(client *mongo.Client, unittest bool) *UserManager {
+func NewUserManager(client *mongo.Client, logger *log.Logger, unittest bool) *UserManager {
 	db := client.Database("nerfdb")
 	return &UserManager{
 		collection: db.Collection("users"),
+		logger:     logger,
 	}
 }
 
@@ -52,12 +56,12 @@ func (um *UserManager) UpdateUser(ctx context.Context, user *User) error {
 }
 
 // GenerateUser generates a new user document with the given username and password,
-// and inserts it into the database. Returns the User, nil if successful. 
+// and inserts it into the database. Returns the User, nil if successful.
 // Returns nil, error if the username is already taken or an error occurred while inserting the user.
 func (um *UserManager) GenerateUser(ctx context.Context, username, password string) (*User, error) {
 	// Check if username is already taken
 	_, err := um.GetUserByUsername(ctx, username)
-	if err != nil  {
+	if err != nil {
 		if !errors.Is(err, ErrUserNotFound) {
 			return nil, err
 		}
@@ -98,14 +102,18 @@ func (um *UserManager) GetUserByID(ctx context.Context, userID primitive.ObjectI
 // GetUserByUsername retrieves a user from the database based on the given username.
 // Returns the User, nil if successful. Returns nil, error if the user is not found.
 func (um *UserManager) GetUserByUsername(ctx context.Context, username string) (*User, error) {
+	fmt.Println("UserManager.GetUserByUsername")
 	var user User
 	err := um.collection.FindOne(ctx, bson.M{"username": username}).Decode(&user)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
+			fmt.Println("User not found")
 			return nil, ErrUserNotFound
 		}
+		fmt.Println("GetUserByUsername Error")
 		return nil, err
 	}
+
 	return &user, nil
 }
 

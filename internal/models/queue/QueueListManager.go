@@ -7,13 +7,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 )
-
-
 
 type QueueListManager struct {
 	collection *mongo.Collection
 	queueNames []string
+	logger     *log.Logger
 }
 
 // contains checks if a string is in a slice of strings
@@ -26,11 +27,12 @@ func contains(arr []string, str string) bool {
 	return false
 }
 
-func NewQueueListManager(client *mongo.Client, unittest bool) *QueueListManager {
+func NewQueueListManager(client *mongo.Client, logger *log.Logger, unittest bool) *QueueListManager {
 	db := client.Database("nerfdb")
 	return &QueueListManager{
 		collection: db.Collection("queues"),
 		queueNames: []string{"sfm_list", "nerf_list", "queue_list"},
+		logger:     logger,
 	}
 }
 
