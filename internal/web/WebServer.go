@@ -3,38 +3,39 @@ package web
 import (
 	"context"
 	"fmt"
-	// "fmt"
 	"net/http"
-	// "os"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/golang-jwt/jwt"
-
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	// Internal imports
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/queue"
-
-	// "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
 )
 
 type WebServer struct {
 	jwtSecret     string
-	router        *gin.Engine
+	app           *fiber.App
 	clientService *services.ClientService
 	queueManager  *queue.QueueListManager
 	logger        *log.Logger
 }
 
 func NewWebServer(jwtSecret string, clientService *services.ClientService, queueManager *queue.QueueListManager, logger *log.Logger) *WebServer {
-	router := gin.Default()
+	app := fiber.New()
+
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowHeaders: "Authorization, Content-Type",
+	}))
+
 	return &WebServer{
 		jwtSecret:     jwtSecret,
-		router:        router,
+		app:           app,
 		clientService: clientService,
 		queueManager:  queueManager,
 		logger:        logger,
@@ -43,32 +44,22 @@ func NewWebServer(jwtSecret string, clientService *services.ClientService, queue
 
 func (s *WebServer) Run(ip string, port int) error {
 	s.SetupRoutes()
-	return s.router.Run(ip + ":" + strconv.Itoa(port))
+	return s.app.Listen(ip + ":" + strconv.Itoa(port))
 }
 
 func (s *WebServer) SetupRoutes() {
-	s.router.POST("/login", s.loginUser)
-	s.router.POST("/register", s.registerUser)
-	s.router.POST("/video", s.tokenRequired(s.receiveVideo))
-	s.router.GET("/routes", s.getRoutes)
-	// s.router.GET("/queue", s.getQueuePosition)
-	s.router.GET("/health", s.healthCheck)
-	// s.router.GET("/worker-data/*path", s.getWorkerData)
-	// s.router.GET("/data/metadata/:scene_id", s.tokenRequired(s.getNerfMetadata))
-	// s.router.GET("/data/nerf/:output_type/:scene_id", s.tokenRequired(s.getNerfResource))
-	// s.router.GET("/preview/:scene_id", s.tokenRequired(s.getPreview))
-	// s.router.GET("/history", s.tokenRequired(s.getUserHistory))
+	s.app.Post("/login", s.loginUser)
+	s.app.Post("/register", s.registerUser)
+	s.app.Post("/video", s.tokenRequired(s.receiveVideo))
+	s.app.Get("/routes", s.getRoutes)
+	s.app.Get("/health", s.healthCheck)
 }
 
-// tokenRequired is a middleware that checks if a valid JWT token is present in the Authorization header.
-// If the token is valid, the user ID is extracted from the token and set in the context.
-// If the token is invalid, a 401 Unauthorized response is returned.
-func (s *WebServer) tokenRequired(handler gin.HandlerFunc) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		tokenString := c.GetHeader("Authorization")
+func (s *WebServer) tokenRequired(handler fiber.Handler) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		tokenString := c.Get("Authorization")
 		if tokenString == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing Authorization header"})
-			return
+			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "Missing Authorization header"})
 		}
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -76,197 +67,89 @@ func (s *WebServer) tokenRequired(handler gin.HandlerFunc) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-			return
+			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token"})
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
-			return
+			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token claims"})
 		}
 		userID, ok := claims["sub"].(string)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID in token"})
-			return
+			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid user ID in token"})
 		}
 
-		c.Set("userID", userID)
-		handler(c)
+		c.Locals("userID", userID)
+		return handler(c)
 	}
 }
 
-// loginUser handles the login request. It delegates the login operation to the client service,
-// and if successful, generates a JWT token containing the user ID and returns it in the response.
-func (s *WebServer) loginUser(c *gin.Context) {
+func (s *WebServer) loginUser(c *fiber.Ctx) error {
 	fmt.Println("Login request received")
 
 	var req common.LoginRequest
-	if err := ValidateRequest(c, &req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+    if err := ValidateRequest(c, &req); err != nil {
+        return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+    }
 	fmt.Println("Login request validated")
 
 	userID, err := s.clientService.LoginUser(context.TODO(), req.Username, req.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-		return
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
 	}
 	fmt.Println("User logged in")
 
-	// Generate JWT token contianing user ID
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub": userID,
 	})
 	tokenString, err := token.SignedString([]byte(s.jwtSecret))
 	if err != nil {
 		fmt.Println("Failed to generate token")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		return
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
 	}
 	fmt.Printf("JWT token generated, userID %s\n", userID)
 
-	c.JSON(http.StatusOK, gin.H{"jwtToken": tokenString})
+	return c.Status(http.StatusOK).JSON(fiber.Map{"jwtToken": tokenString})
 }
 
-// registerUser handles the register request. It delegates the register operation to the client service,
-// and returns a 201 Created response if successful.
-func (s *WebServer) registerUser(c *gin.Context) {
+func (s *WebServer) registerUser(c *fiber.Ctx) error {
 	var req common.RegisterRequest
-	if err := ValidateRequest(c, &req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+    if err := ValidateRequest(c, &req); err != nil {
+        return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+    }
 
 	err := s.clientService.RegisterUser(context.TODO(), req.Username, req.Password)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "User created"})
+	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "User created"})
 }
 
-// // getNerfMetadata handles the request to get metadata about a scene. It delegates the operation to the client service,
-// // and returns the metadata in the response if successful.
-// func (s *WebServer) getNerfMetadata(c *gin.Context) {
-// 	var req common.GetNerfMetadataRequest
-// 	if err := ValidateRequest(c, &req); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
+func (s *WebServer) receiveVideo(c *fiber.Ctx) error {
+    userID, err := primitive.ObjectIDFromHex(c.Locals("userID").(string))
+    if err != nil {
+        return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+    }
 
-// 	userID, err := primitive.ObjectIDFromHex(c.GetString("userID"))
-// 	if err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-// 		return
-// 	}
-// 	sceneID, err := primitive.ObjectIDFromHex(req.SceneID)
-// 	if err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scene ID"})
-// 		return
-// 	}
+    req, err := ParseVideoUploadRequest(c)
+    if err != nil {
+        return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+    }
 
-// 	metadata, err := s.clientService.GetNerfMetadata(context.TODO(), userID, sceneID, req.OutputType)
+    scene_id, err := s.clientService.HandleIncomingVideo(context.TODO(), userID, req)
+    if err != nil {
+        return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+    }
 
-// 	if err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-// 	c.JSON(http.StatusOK, metadata)
-// }
-
-// // getNerfResource handles the request to get a resource for a scene. It delegates the operation to the client service,
-// // and returns the resource in the response if successful. The resource is streamed back to the client, using the provided range header.
-// func (s *WebServer) getNerfResource(c *gin.Context) {
-// 	var req common.GetNerfResourceRequest
-// 	if err := ValidateRequest(c, &req); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	userID := c.GetString("userID")
-// 	rangeHeader := c.GetHeader("Range")
-
-// 	response := s.clientService.GetNerfResource(context.TODO(), userID, req.SceneID, req.OutputType, req.Iteration, rangeHeader)
-// 	c.DataFromReader(response.StatusCode, response.ContentLength, response.ContentType, response.Body, nil)
-// }
-
-// func (s *WebServer) getUserHistory(c *gin.Context) {
-// 	userID := c.GetString("userID")
-
-// 	response := s.clientService.GetUserHistory(context.TODO(), userID)
-// 	c.JSON(response.StatusCode, response)
-// }
-
-// func (s *WebServer) getWorkerData(c *gin.Context) {
-// 	path := c.Param("path")
-
-// 	if _, err := os.Stat(path); os.IsNotExist(err) {
-// 		c.String(http.StatusNotFound, "File not found")
-// 		return
-// 	}
-
-// 	c.File(path)
-// }
-
-// func (s *WebServer) getPreview(c *gin.Context) {
-// 	var req GetPreviewRequest
-// 	if err := ValidateRequest(c, &req); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	userID := c.GetString("userID")
-// 	response := s.clientService.GetPreview(context.TODO(), userID, req.SceneID)
-// 	c.JSON(response.StatusCode, response)
-// }
-
-func (s *WebServer) receiveVideo(c *gin.Context) {
-	userID, err := primitive.ObjectIDFromHex(c.GetString("userID"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
-
-	req, err := ParseVideoUploadRequest(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	scene_id, err := s.clientService.HandleIncomingVideo(context.TODO(), userID, req)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// TODO: Fix
-	c.JSON(http.StatusOK, fmt.Sprintf("Video received and processing scene %s. Check back later for updates.", &scene_id))
+    return c.Status(fiber.StatusOK).SendString(fmt.Sprintf("Video received and processing scene %s. Check back later for updates.", scene_id))
 }
 
-// func (s *WebServer) getQueuePosition(c *gin.Context) {
-// 	var req common.GetQueuePositionRequest
-// 	if err := ValidateRequest(c, &req); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	position := s.queueManager.getQueuePosition(req.QueueID, req.TaskID)
-// 	size := s.queueManager.getQueueSize(req.QueueID)
-
-// 	c.String(http.StatusOK, "%d / %d", position, size)
-// }
-
-func (s *WebServer) getRoutes(c *gin.Context) {
-	routes := make([]gin.RouteInfo, 0)
-	for _, route := range s.router.Routes() {
-		routes = append(routes, route)
-	}
-	c.JSON(http.StatusOK, routes)
+func (s *WebServer) getRoutes(c *fiber.Ctx) error {
+	routes := s.app.GetRoutes()
+	return c.Status(http.StatusOK).JSON(routes)
 }
 
-func (s *WebServer) healthCheck(c *gin.Context) {
-	c.String(http.StatusOK, "OK")
+func (s *WebServer) healthCheck(c *fiber.Ctx) error {
+	return c.SendString("OK")
 }

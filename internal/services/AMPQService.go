@@ -47,7 +47,8 @@ func NewAMPQService(messageBrokerDomain string, queueManager *queue.QueueListMan
 }
 
 func (s *AMPQService) connect() error {
-	timeout := time.Now().Add(2 * time.Minute)
+	fmt.Println("AMPQService.connect")
+	timeout := time.Now().Add(time.Minute / 4)
 	var err error
 
 	for time.Now().Before(timeout) {

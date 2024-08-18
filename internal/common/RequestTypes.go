@@ -5,45 +5,45 @@ import (
 )
 
 type LoginRequest struct {
-    Username string `form:"username" binding:"required"`
-    Password string `form:"password" binding:"required"`
+    Username string `json:"username" validate:"required"`
+    Password string `json:"password" validate:"required"`
 }
 
 type RegisterRequest struct {
-    Username string `form:"username" binding:"required"`
-    Password string `form:"password" binding:"required"`
+    Username string `json:"username" validate:"required"`
+    Password string `json:"password" validate:"required"`
 }
 
 type VideoUploadRequest struct {
-    File           *multipart.FileHeader `form:"file" binding:"required"`
-    TrainingMode   string     `form:"training_mode" binding:"required,oneof=gaussian tensorf"`
-    OutputTypes    []string   `form:"output_types" binding:"required,dive,validOutputType"`
-    SaveIterations []int      `form:"save_iterations" binding:"required,dive,min=1,max=30000"`
-    TotalIterations int       `form:"total_iterations" binding:"required,min=1,max=30000"`
-    SceneName      string     `form:"scene_name"`
+    File            *multipart.FileHeader `form:"file" validate:"required"`
+    TrainingMode    string                `form:"training_mode" validate:"required,oneof=gaussian tensorf"`
+    OutputTypes     []string              `form:"output_types" validate:"required,dive,validOutputType"`
+    SaveIterations  []int                 `form:"save_iterations" validate:"required,dive,min=1,max=30000"`
+    TotalIterations int                   `form:"total_iterations" validate:"required,min=1,max=30000"`
+    SceneName       string                `form:"scene_name"`
 }
 
 type GetNerfMetadataRequest struct {
-    SceneID     string `uri:"scene_id" binding:"required"`
-    OutputType  string `form:"output_type,omitempty"`
+    SceneID    string `params:"scene_id" validate:"required"`
+    OutputType string `query:"output_type,omitempty"`
 }
 
 type GetNerfTypeMetadataRequest struct {
-    OutputType string `uri:"output_type" binding:"required"`
-    SceneID    string `uri:"scene_id" binding:"required"`
+    OutputType string `params:"output_type" validate:"required"`
+    SceneID    string `params:"scene_id" validate:"required"`
 }
 
 type GetNerfResourceRequest struct {
-    OutputType string `uri:"output_type" binding:"required"`
-    SceneID    string `uri:"scene_id" binding:"required"`
-    Iteration  string `form:"iteration"`
+    OutputType string `params:"output_type" validate:"required"`
+    SceneID    string `params:"scene_id" validate:"required"`
+    Iteration  string `query:"iteration"`
 }
 
 type GetPreviewRequest struct {
-    SceneID string `uri:"scene_id" binding:"required"`
+    SceneID string `params:"scene_id" validate:"required"`
 }
 
 type GetQueuePositionRequest struct {
-    QueueID string `form:"queueid" binding:"required"`
-    TaskID  string `form:"id" binding:"required"`
+    QueueID string `query:"queueid" validate:"required"`
+    TaskID  string `query:"id" validate:"required"`
 }
