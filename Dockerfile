@@ -1,15 +1,13 @@
-# Build stage
+# BUILD STAGE
 FROM golang:1.23.0-alpine3.20 AS builder
 WORKDIR /app
 COPY . .
-RUN go build -o go-web-server ./cmd/main
+RUN go build -o /go-web-server ./cmd/main
 
-# Run stage
+# RUN STAGE
 FROM alpine:3.20
 WORKDIR /app
-COPY --from=builder /app/go-web-server .
-COPY /secrets /app/secrets
-
+COPY --from=builder /go-web-server .
+COPY secrets ./secrets
 EXPOSE 5000
-
 CMD ["./go-web-server"]

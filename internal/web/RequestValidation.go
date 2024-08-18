@@ -7,9 +7,8 @@ import (
     "strconv"
     "strings"
 
-    "github.com/gin-gonic/gin"
     "github.com/go-playground/validator/v10"
-
+    "github.com/gofiber/fiber/v2"
     
     "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
     "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
@@ -28,29 +27,57 @@ func validateOutputType(fl validator.FieldLevel) bool {
     return scene.Nerf{}.IsValidOutputType(trainingMode, outputType)
 }
 
-
-func ValidateRequest(c *gin.Context, req interface{}) error {
-    if err := c.ShouldBind(req); err != nil {
+func ValidateRequest(c *fiber.Ctx, req interface{}) error {
+    // For JSON payloads
+    if err := c.BodyParser(req); err != nil {
         return err
     }
+    
+    // For query parameters
+    if err := c.QueryParser(req); err != nil {
+        return err
+    }
+    
+    // For path parameters
+    if err := c.ParamsParser(req); err != nil {
+        return err
+    }
+
     return validate.Struct(req)
 }
 
-func ParseVideoUploadRequest(c *gin.Context) (*common.VideoUploadRequest, error) {
+func ParseVideoUploadRequest(c *fiber.Ctx) (*common.VideoUploadRequest, error) {
     var req common.VideoUploadRequest
 
-    if err := c.ShouldBind(&req); err != nil {
-        return nil, err
+    // Handle file upload
+    file, err := c.FormFile("file")
+    if err != nil {
+        return nil, errors.New("file upload error: " + err.Error())
+    }
+    req.File = file
+
+    // Parse other form fields
+    req.TrainingMode = c.FormValue("training_mode")
+    req.SceneName = c.FormValue("scene_name")
+
+    // Parse total iterations
+    totalIterationsStr := c.FormValue("total_iterations")
+    if totalIterationsStr != "" {
+        totalIterations, err := strconv.Atoi(totalIterationsStr)
+        if err != nil {
+            return nil, errors.New("invalid total iterations")
+        }
+        req.TotalIterations = totalIterations
     }
 
     // Parse output types
-    outputTypesStr := c.PostForm("output_types")
+    outputTypesStr := c.FormValue("output_types")
     if outputTypesStr != "" {
         req.OutputTypes = strings.Split(outputTypesStr, ",")
     }
 
     // Parse save iterations
-    saveIterationsStr := c.PostForm("save_iterations")
+    saveIterationsStr := c.FormValue("save_iterations")
     if saveIterationsStr != "" {
         saveIterationsSlice := strings.Split(saveIterationsStr, ",")
         req.SaveIterations = make([]int, len(saveIterationsSlice))
