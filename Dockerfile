@@ -8,7 +8,7 @@ RUN go build -o go-web-server ./cmd/main
 FROM alpine:3.20
 WORKDIR /app
 COPY --from=builder /app/go-web-server .
-COPY .env .env
+COPY /secrets /app/secrets
 
 EXPOSE 5000
 
