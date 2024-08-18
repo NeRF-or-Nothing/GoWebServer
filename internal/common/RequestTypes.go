@@ -25,7 +25,6 @@ type VideoUploadRequest struct {
 
 type GetNerfJobMetadataRequest struct {
     SceneID    string `params:"scene_id" validate:"required"`
-    OutputType string `query:"output_type,omitempty"`
 }
 
 type GetNerfResourceRequest struct {

@@ -9,5 +9,6 @@ FROM alpine:3.20
 WORKDIR /app
 COPY --from=builder /go-web-server .
 COPY secrets ./secrets
+COPY data ./data
 EXPOSE 5000
 CMD ["./go-web-server"]

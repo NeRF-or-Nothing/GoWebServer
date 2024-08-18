@@ -16,17 +16,13 @@ import (
 
 var validate *validator.Validate
 
+// Initialize the custom validator
 func init() {
     validate = validator.New()
     validate.RegisterValidation("validOutputType", validateOutputType)
 }
 
-func validateOutputType(fl validator.FieldLevel) bool {
-    outputType := fl.Field().String()
-    trainingMode := fl.Parent().FieldByName("TrainingMode").String()
-    return scene.Nerf{}.IsValidOutputType(trainingMode, outputType)
-}
-
+// ValidateRequest validates a request using the Fiber context and a request struct.
 func ValidateRequest(c *fiber.Ctx, req interface{}) error {
     // For JSON payloads
     if err := c.BodyParser(req); err != nil {
@@ -46,6 +42,8 @@ func ValidateRequest(c *fiber.Ctx, req interface{}) error {
     return validate.Struct(req)
 }
 
+// ParseVideoUploadRequest parses a video upload request from a Fiber context.
+// Returns a VideoUploadRequest struct if successful, error otherwise.
 func ParseVideoUploadRequest(c *fiber.Ctx) (*common.VideoUploadRequest, error) {
     var req common.VideoUploadRequest
 
@@ -96,4 +94,11 @@ func ParseVideoUploadRequest(c *fiber.Ctx) (*common.VideoUploadRequest, error) {
     }
 
     return &req, nil
+}
+
+// ValidateOutputType is a custom validator for output types in a VideoUploadRequest.
+func validateOutputType(fl validator.FieldLevel) bool {
+    outputType := fl.Field().String()
+    trainingMode := fl.Parent().FieldByName("TrainingMode").String()
+    return scene.Nerf{}.IsValidOutputType(trainingMode, outputType)
 }

@@ -73,7 +73,7 @@ func (s *AMPQService) connect() error {
 
 	queues := []string{"sfm-in", "nerf-in", "sfm-out", "nerf-out"}
 	for _, queue := range queues {
-		_, err = s.channel.QueueDeclare(queue, true, false, false, false, nil)
+		_, err = s.channel.QueueDeclare(queue, false, false, false, false, nil)
 		if err != nil {
 			return fmt.Errorf("failed to declare queue %s: %v", queue, err)
 		}

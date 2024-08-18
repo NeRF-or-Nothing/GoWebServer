@@ -1,24 +1,22 @@
 package web
 
 import (
-	"context"
-	"fmt"
-	"net/http"
 	"os"
-	"path/filepath"
+	"fmt"
+	"context"
 	"strconv"
 	"strings"
+	"net/http"
+	"path/filepath"
 
+	"github.com/golang-jwt/jwt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/golang-jwt/jwt"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/queue"
-
-	// "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
 )
 
@@ -30,6 +28,7 @@ type WebServer struct {
 	logger        *log.Logger
 }
 
+// NewWebServer creates a new WebServer instance.
 func NewWebServer(jwtSecret string, clientService *services.ClientService, queueManager *queue.QueueListManager, logger *log.Logger) *WebServer {
 	app := fiber.New()
 
@@ -47,24 +46,55 @@ func NewWebServer(jwtSecret string, clientService *services.ClientService, queue
 	}
 }
 
+// Run starts the web server on the given IP and port.
 func (s *WebServer) Run(ip string, port int) error {
 	s.SetupRoutes()
+	s.SetupFileStructure()
 	return s.app.Listen(ip + ":" + strconv.Itoa(port))
 }
 
+// SetupRoutes sets up the routes for the web server.
 func (s *WebServer) SetupRoutes() {
 	s.app.Post("/login", s.loginUser)
 	s.app.Post("/register", s.registerUser)
+	s.app.Post("/video", s.tokenRequired(s.receiveVideo))
 	s.app.Get("/routes", s.getRoutes)
 	s.app.Get("/health", s.healthCheck)
 	s.app.Get("/worker-data/:path", s.getWorkerData)
-	s.app.Post("/video", s.tokenRequired(s.receiveVideo))
-	s.app.Get("/data/scenemetadata/:sceneID", s.tokenRequired(s.getSceneMetadata))
-	s.app.Get("/data/thumb/:sceneID", s.tokenRequired(s.getSceneThumbnail))
-	s.app.Get("/data/scenename/:sceneID", s.tokenRequired(s.getSceneName))
-	s.app.Get("/history", s.tokenRequired(s.getUserHistory))
+	s.app.Get("/history", s.tokenRequired(s.getUserSceneHistory))
+	s.app.Get("/data/scene/metadata/:scene_id", s.tokenRequired(s.getSceneMetadata))
+	s.app.Get("/data/scene/thumbnail/:scene_id", s.tokenRequired(s.getSceneThumbnail))
+	s.app.Get("/data/scene/name/:scene_id", s.tokenRequired(s.getSceneName))
 }
 
+// SetupFileStructure creates the necessary directories for storing data files.
+// Due to docker volume mapping, this should be mostly redundant, but it is included for completeness.
+func (s *WebServer) SetupFileStructure() {
+	dataDir := "/data"
+	sfmDir := filepath.Join(dataDir, "sfm")
+	nerfDir := filepath.Join(dataDir, "nerf")
+	rawDir := filepath.Join(dataDir, "raw")
+
+	err := os.MkdirAll(sfmDir, os.ModePerm)
+	if err != nil {
+		s.logger.Info("Failed to create sfm directory:", err.Error())
+	}
+
+	err = os.MkdirAll(nerfDir, os.ModePerm)
+	if err != nil {
+		s.logger.Info("Failed to create nerf directory:", err.Error())
+	}
+
+	err = os.MkdirAll(rawDir, os.ModePerm)
+	if err != nil {
+		s.logger.Info("Failed to create raw directory:", err.Error())
+	}
+}
+
+// tokenRequired is a middleware that checks for a valid JWT token in the Authorization header.
+// The token is expected to be in the format: `Bearer <token>`. A valid token will decode to a user ID (of type String(primitive.ObjectID)).
+// It is expected that the user ID is stored in the token's `sub` claim. Validation of the user ID is not performed,
+// and instead the user ID is stored in the request context for use in the handler.
 func (s *WebServer) tokenRequired(handler fiber.Handler) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
@@ -80,7 +110,6 @@ func (s *WebServer) tokenRequired(handler fiber.Handler) fiber.Handler {
 		}
 
 		tokenString := parts[1]
-
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			return []byte(s.jwtSecret), nil
 		})
@@ -106,6 +135,11 @@ func (s *WebServer) tokenRequired(handler fiber.Handler) fiber.Handler {
 	}
 }
 
+// loginUser handles the login request. It expects a JSON payload with the following format:
+// {
+//     "username": "username",
+//     "password": "password"
+// }
 func (s *WebServer) loginUser(c *fiber.Ctx) error {
 	s.logger.Info("Login request received")
 
@@ -136,6 +170,11 @@ func (s *WebServer) loginUser(c *fiber.Ctx) error {
 	return c.Status(http.StatusOK).JSON(fiber.Map{"jwtToken": tokenString})
 }
 
+// registerUser handles the registration request. It expects a JSON payload with the following format:
+// {
+//     "username": "username",
+//     "password": "password"
+// }
 func (s *WebServer) registerUser(c *fiber.Ctx) error {
 	s.logger.Info("Register request received")
 
@@ -155,6 +194,20 @@ func (s *WebServer) registerUser(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "User created"})
 }
 
+// receiveVideo handles the video upload request. It is a JWT protected route.
+//It expects a multipart form with the following fields:
+//- file: 
+//   the video file to upload
+// - training_mode: 
+//   the training mode to use (gaussian or tensorf)
+// - output_types: 
+//   a comma-separated list of output types to save (e.g. splat_cloud, point_cloud, etc.)
+// - save_iterations: 
+//   a comma-separated list of iterations to save the output at (0 <= x <= 30000)
+// - total_iterations: 
+//   the total number of iterations to run (0 <= x <= 30000)
+// - scene_name: 
+//   the name of the scene
 func (s *WebServer) receiveVideo(c *fiber.Ctx) error {
 	s.logger.Info("Video upload request received")
 
@@ -180,38 +233,44 @@ func (s *WebServer) receiveVideo(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"id": sceneID, "message": "Video received and processing scene. Check back later for updates."})
 }
 
+
+// getSceneMetadata handles the request to get the metadata for a scene. It is a JWT protected route.
+// It expects a path parameter `scene_id` with the scene ID.
 func (s *WebServer) getSceneMetadata(c *fiber.Ctx) error {
-	s.logger.Info("Get job data request received")
+    s.logger.Info("Get job data request received")
 
-	var req common.GetNerfJobMetadataRequest
-	if err := ValidateRequest(c, &req); err != nil {
-		s.logger.Info("Get job data request validation failed:", err.Error())
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
+    var req common.GetNerfJobMetadataRequest
+    if err := ValidateRequest(c, &req); err != nil {
+        s.logger.Info("Get job data request validation failed:", err.Error())
+        return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+    }
 
-	userID, err := primitive.ObjectIDFromHex(c.Locals("userID").(string))
-	if err != nil {
-		s.logger.Info("Invalid user ID:", err.Error())
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
-	}
+    s.logger.Info("Request data:", req)
 
-	sceneID, err := primitive.ObjectIDFromHex(req.SceneID)
-	if err != nil {
-		s.logger.Info("Invalid job ID:", err.Error())
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid job ID"})
-	}
+    userID, err := primitive.ObjectIDFromHex(c.Locals("userID").(string))
+    if err != nil {
+        s.logger.Info("Invalid user ID:", err.Error())
+        return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+    }
 
-	sceneData, err := s.clientService.GetSceneMetadata(context.TODO(), userID, sceneID, req.OutputType)
-	if err != nil {
-		s.logger.Info("Failed to get job data:", err.Error())
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
+    sceneID, err := primitive.ObjectIDFromHex(req.SceneID)
+    if err != nil {
+        s.logger.Info("Invalid job ID:", err.Error())
+        return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid job ID"})
+    }
 
-	s.logger.Info(fmt.Sprintf("Job data retrieved successfully, data: %s", sceneData))
-	return c.Status(http.StatusOK).JSON(fiber.Map{"scene_data": sceneData})
+    sceneData, err := s.clientService.GetSceneMetadata(context.TODO(), userID, sceneID)
+    if err != nil {
+        s.logger.Info("Failed to get job data:", err.Error())
+        return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+    }
+
+    s.logger.Info(fmt.Sprintf("Job data retrieved successfully, data: %s", sceneData))
+    return c.Status(http.StatusOK).JSON(sceneData)
 }
 
-func (s *WebServer) getUserHistory(c *fiber.Ctx) error {
+// getUserSceneHistory handles the request to get the history of scenes for a user. It is a JWT protected route.
+func (s *WebServer) getUserSceneHistory(c *fiber.Ctx) error {
 	s.logger.Info("Get user history request received")
 
 	userID, err := primitive.ObjectIDFromHex(c.Locals("userID").(string))
@@ -220,16 +279,18 @@ func (s *WebServer) getUserHistory(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
 	}
 
-	history, err := s.clientService.GetUserHistory(context.TODO(), userID)
+	sceneIDList, err := s.clientService.GetUserSceneHistory(context.TODO(), userID)
 	if err != nil {
 		s.logger.Info("Failed to get user history:", err.Error())
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	s.logger.Info("User history retrieved successfully")
-	return c.Status(http.StatusOK).JSON(fiber.Map{"resources": history})
+	return c.Status(http.StatusOK).JSON(fiber.Map{"resources": sceneIDList})
 }
 
+// getSceneThumbnail handles the request to get the thumbnail for a scene. It is a JWT protected route.
+// It expects a path parameter `scene_id` with the scene ID.
 func (s *WebServer) getSceneThumbnail(c *fiber.Ctx) error {
 	s.logger.Info("Get scene thumbnail request received")
 
@@ -267,6 +328,8 @@ func (s *WebServer) getSceneThumbnail(c *fiber.Ctx) error {
 	return c.Status(http.StatusOK).Send(thumbnailData)
 }
 
+// getSceneName handles the request to get the name of a scene. It is a JWT protected route.
+// It expects a path parameter `scene_id` with the scene ID.
 func (s *WebServer) getSceneName(c *fiber.Ctx) error {
 	var req common.GetSceneNameRequest
 	if err := ValidateRequest(c, &req); err != nil {
@@ -291,6 +354,7 @@ func (s *WebServer) getSceneName(c *fiber.Ctx) error {
 	return c.Status(http.StatusOK).JSON(fiber.Map{"scene_name": sceneName})
 }
 
+// getWorkerData handles the request to send data between workers.
 func (s *WebServer) getWorkerData(c *fiber.Ctx) error {
     s.logger.Info("Get worker data request received")
 
@@ -317,12 +381,14 @@ func (s *WebServer) getWorkerData(c *fiber.Ctx) error {
     return c.SendFile(fullPath)
 }
 
+// getRoutes handles the request to get the list of routes available on the server.
 func (s *WebServer) getRoutes(c *fiber.Ctx) error {
 	s.logger.Info("Get routes request received")
 	routes := s.app.GetRoutes()
 	return c.Status(http.StatusOK).JSON(routes)
 }
 
+// healthCheck handles the request to check the health of the server.
 func (s *WebServer) healthCheck(c *fiber.Ctx) error {
 	s.logger.Info("Health check request received")
 	return c.SendString("OK")

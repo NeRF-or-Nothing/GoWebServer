@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -16,6 +17,31 @@ import (
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/web"
 )
+
+func exploreDirectory(root string) error {
+    return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+        if err != nil {
+            fmt.Printf("Error accessing path %q: %v\n", path, err)
+            return err
+        }
+
+        // Get the relative path
+        relPath, err := filepath.Rel(root, path)
+        if err != nil {
+            fmt.Printf("Error getting relative path for %q: %v\n", path, err)
+            return err
+        }
+
+        if info.IsDir() {
+            fmt.Printf("Directory: %s\n", relPath)
+        } else {
+            fmt.Printf("File: %s (Size: %d bytes)\n", relPath, info.Size())
+        }
+
+        return nil
+    })
+}
+
 
 func main() {
 	// Load environment variables from .env file
@@ -30,6 +56,20 @@ func main() {
 		panic(err)
 	}
 	defer logger.Sync()
+
+	// Get the current working directory
+    currentDir, err := os.Getwd()
+    if err != nil {
+        fmt.Printf("Error getting current directory: %v\n", err)
+        return
+    }
+
+    fmt.Printf("Exploring directory: %s\n", currentDir)
+    err = exploreDirectory(currentDir)
+    if err != nil {
+        fmt.Printf("Error exploring directory: %v\n", err)
+    }
+
 
 	// // Load IP configuration
 	// ipFile, err := os.Open(os.Getenv("DOCKER_IN_PATH"))
