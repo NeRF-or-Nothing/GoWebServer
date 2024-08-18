@@ -46,3 +46,8 @@ type GetQueuePositionRequest struct {
     QueueID string `query:"queueid" validate:"required"`
     TaskID  string `query:"id" validate:"required"`
 }
+
+type GetWorkerDataReuqest struct {
+    WorkerID string `params:"worker_id" validate:"required"`
+    Path     string `query:"path"`
+}

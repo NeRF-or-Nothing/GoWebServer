@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -17,7 +17,8 @@ import (
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/queue"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
+
+	// "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
 )
 
@@ -56,6 +57,7 @@ func (s *WebServer) SetupRoutes() {
 	s.app.Post("/register", s.registerUser)
 	s.app.Get("/routes", s.getRoutes)
 	s.app.Get("/health", s.healthCheck)
+	s.app.Get("/worker-data/:path", s.getWorkerData)
 	s.app.Post("/video", s.tokenRequired(s.receiveVideo))
 	s.app.Get("/data/scenemetadata/:sceneID", s.tokenRequired(s.getSceneMetadata))
 	s.app.Get("/data/thumb/:sceneID", s.tokenRequired(s.getSceneThumbnail))
@@ -287,6 +289,32 @@ func (s *WebServer) getSceneName(c *fiber.Ctx) error {
 	}
 
 	return c.Status(http.StatusOK).JSON(fiber.Map{"scene_name": sceneName})
+}
+
+func (s *WebServer) getWorkerData(c *fiber.Ctx) error {
+    s.logger.Info("Get worker data request received")
+
+    path := c.Params("path")
+    if path == "" {
+        s.logger.Info("Invalid path parameter")
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid path parameter"})
+    }
+
+    // For security, you might want to restrict the base directory
+    basePath := ""
+	s.logger.Infof("Base path: %s", basePath)
+    fullPath := filepath.Join(basePath, path)
+	s.logger.Infof("Full path: %s", fullPath)
+
+    s.logger.Infof("Attempting to send worker data from path: %s", fullPath)
+    s.logger.Infof("to address: %s", c.IP())
+
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+        s.logger.Errorf("File not found: %s", fullPath)
+        return c.Status(fiber.StatusNotFound).SendString("File not found")
+    }
+
+    return c.SendFile(fullPath)
 }
 
 func (s *WebServer) getRoutes(c *fiber.Ctx) error {

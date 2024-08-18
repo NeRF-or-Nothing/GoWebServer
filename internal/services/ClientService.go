@@ -86,7 +86,7 @@ type ResourceInfo struct {
 }
 
 // Metadata about the resources available for a scene.
-type NerfMetadata struct {
+type SceneMetadata struct {
 	Resources map[string]map[string]ResourceInfo `json:"resources"`
 }
 
@@ -109,7 +109,7 @@ func (s *ClientService) GetSceneMetadata(ctx context.Context, userID, sceneID pr
 		return nil, err
 	}
 
-	metadata := &NerfMetadata{
+	metadata := &SceneMetadata{
 		Resources: make(map[string]map[string]ResourceInfo),
 	}
 
