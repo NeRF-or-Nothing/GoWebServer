@@ -23,14 +23,9 @@ type VideoUploadRequest struct {
     SceneName       string                `form:"scene_name"`
 }
 
-type GetNerfMetadataRequest struct {
+type GetNerfJobMetadataRequest struct {
     SceneID    string `params:"scene_id" validate:"required"`
     OutputType string `query:"output_type,omitempty"`
-}
-
-type GetNerfTypeMetadataRequest struct {
-    OutputType string `params:"output_type" validate:"required"`
-    SceneID    string `params:"scene_id" validate:"required"`
 }
 
 type GetNerfResourceRequest struct {
@@ -39,7 +34,11 @@ type GetNerfResourceRequest struct {
     Iteration  string `query:"iteration"`
 }
 
-type GetPreviewRequest struct {
+type GetSceneThumbnailRequest struct {
+    SceneID string `params:"scene_id" validate:"required"`
+}
+
+type GetSceneNameRequest struct {
     SceneID string `params:"scene_id" validate:"required"`
 }
 
