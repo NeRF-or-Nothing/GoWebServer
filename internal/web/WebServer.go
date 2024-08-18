@@ -1,3 +1,6 @@
+// This file contains the WebServer implementation. The WebServer is responsible for handling/validating HTTP requests and
+// dispatching them to the appropriate handler.
+
 package web
 
 import (
@@ -16,8 +19,8 @@ import (
 
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/queue"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/queue"
 )
 
 type WebServer struct {
@@ -55,16 +58,20 @@ func (s *WebServer) Run(ip string, port int) error {
 
 // SetupRoutes sets up the routes for the web server.
 func (s *WebServer) SetupRoutes() {
-	s.app.Post("/login", s.loginUser)
-	s.app.Post("/register", s.registerUser)
-	s.app.Post("/video", s.tokenRequired(s.receiveVideo))
+	s.app.Post("/user/login", s.loginUser)
+	s.app.Post("/user/register", s.registerUser)
+	s.app.Patch("/user/account/update/password", s.tokenRequired(s.updateUserPassword))
+	s.app.Patch("/user/account/update/username", s.tokenRequired(s.updateUserUsername))
+	s.app.Delete("/user/account/delete/scene", s.tokenRequired(s.deleteUserScene))
+	s.app.Delete("/user/account/delete/account", s.tokenRequired(s.deleteUser))
+	s.app.Post("/user/scene/new", s.tokenRequired(s.receiveVideo))
+	s.app.Get("/user/scene/metadata/:scene_id", s.tokenRequired(s.getSceneMetadata))
+	s.app.Get("/user/scene/thumbnail/:scene_id", s.tokenRequired(s.getSceneThumbnail))
+	s.app.Get("/user/scene/name/:scene_id", s.tokenRequired(s.getSceneName))
+	s.app.Get("/user/history", s.tokenRequired(s.getUserSceneHistory))
 	s.app.Get("/routes", s.getRoutes)
 	s.app.Get("/health", s.healthCheck)
-	s.app.Get("/worker-data/:path", s.getWorkerData)
-	s.app.Get("/history", s.tokenRequired(s.getUserSceneHistory))
-	s.app.Get("/data/scene/metadata/:scene_id", s.tokenRequired(s.getSceneMetadata))
-	s.app.Get("/data/scene/thumbnail/:scene_id", s.tokenRequired(s.getSceneThumbnail))
-	s.app.Get("/data/scene/name/:scene_id", s.tokenRequired(s.getSceneName))
+	s.app.Get("/worker-data/*", s.getWorkerData)
 }
 
 // SetupFileStructure creates the necessary directories for storing data files.
@@ -194,7 +201,61 @@ func (s *WebServer) registerUser(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "User created"})
 }
 
-// receiveVideo handles the video upload request. It is a JWT protected route.
+// updateUserUsername handles the request to update the username of a user. It is a JWT protected route.
+// It expects a JSON payload with the following format:
+// {
+//     "password": "password",
+//     "new_username": "new_username"
+// }
+func (s *WebServer) updateUserUsername(c* fiber.Ctx) error {
+	var req common.UpdateUsernameRequest
+	if err := ValidateRequest(c, &req); err != nil {
+		return fiber.NewError(http.StatusBadRequest, err.Error())
+	}
+	
+	userID, err := primitive.ObjectIDFromHex(c.Locals("userID").(string))
+	if err != nil {
+		return fiber.NewError(http.StatusBadRequest, "Invalid user ID")
+	}
+
+	err = s.clientService.UpdateUserUsername(context.TODO(), userID, req.Password, req.NewUsername)
+	return c.Status(http.StatusOK).JSON(fiber.Map{"message": "Username updated"})
+}
+
+// updateUserPassword handles the request to update the password of a user. It is a JWT protected route.
+// It expects a JSON payload with the following format:
+// {
+//     "old_password": "old_password",
+//     "new_password": "new_password"
+// }
+func (s *WebServer) updateUserPassword(c* fiber.Ctx) error {
+	var req common.UpdatePasswordRequest
+	if err := ValidateRequest(c, &req); err != nil {
+		return fiber.NewError(http.StatusBadRequest, err.Error())
+	}
+
+	userID, err := primitive.ObjectIDFromHex(c.Locals("userID").(string))
+	if err != nil {
+		return fiber.NewError(http.StatusBadRequest, "Invalid user ID")
+	}
+
+	err = s.clientService.UpdateUserPassword(context.TODO(), userID, req.OldPassword, req.NewPassword)
+	return c.Status(http.StatusOK).JSON(fiber.Map{"message": "Password updated"})
+}
+
+// Must be careful in implementing these two functions.
+// Figure our how to gracefully handle deletion of scenes since they might be processing.
+func (s *WebServer) deleteUserScene(c* fiber.Ctx) error {
+	return fiber.NewError(http.StatusNotImplemented, "Not implemented")
+}
+
+// Should deleting a user also delete all their scenes? How to handle this?
+func (s *WebServer) deleteUser(c* fiber.Ctx) error {
+	return fiber.NewError(http.StatusNotImplemented, "Not implemented")
+}
+
+
+// receiveVideo handles the new scene request. It is a JWT protected route.
 //It expects a multipart form with the following fields:
 //- file: 
 //   the video file to upload
@@ -239,7 +300,7 @@ func (s *WebServer) receiveVideo(c *fiber.Ctx) error {
 func (s *WebServer) getSceneMetadata(c *fiber.Ctx) error {
     s.logger.Info("Get job data request received")
 
-    var req common.GetNerfJobMetadataRequest
+    var req common.GetSceneMetadataRequest
     if err := ValidateRequest(c, &req); err != nil {
         s.logger.Info("Get job data request validation failed:", err.Error())
         return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -356,25 +417,27 @@ func (s *WebServer) getSceneName(c *fiber.Ctx) error {
 
 // getWorkerData handles the request to send data between workers.
 func (s *WebServer) getWorkerData(c *fiber.Ctx) error {
-    s.logger.Info("Get worker data request received")
+    fmt.Println("Get worker data request received")
 
-    path := c.Params("path")
-    if path == "" {
-        s.logger.Info("Invalid path parameter")
+    fullPath := c.Params("*")
+    fmt.Println("Received path:", fullPath)
+
+    if fullPath == "" {
+        fmt.Println("Invalid path parameter")
         return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid path parameter"})
     }
 
-    // For security, you might want to restrict the base directory
-    basePath := ""
-	s.logger.Infof("Base path: %s", basePath)
-    fullPath := filepath.Join(basePath, path)
-	s.logger.Infof("Full path: %s", fullPath)
+    basePath := "/app"
+    fmt.Println("Base path:", basePath)
+    
+    fullPath = filepath.Join(basePath, fullPath)
+    fmt.Println("Full path:", fullPath)
 
-    s.logger.Infof("Attempting to send worker data from path: %s", fullPath)
-    s.logger.Infof("to address: %s", c.IP())
+    fmt.Println("Attempting to send worker data from path:", fullPath)
+    fmt.Println("to address:", c.IP())
 
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-        s.logger.Errorf("File not found: %s", fullPath)
+    if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+        fmt.Println("File not found:", fullPath)
         return c.Status(fiber.StatusNotFound).SendString("File not found")
     }
 

@@ -20,6 +20,8 @@ func NewLogger(development bool) (*Logger, error) {
     }
 
     config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+    config.OutputPaths = []string{"web-server.log"}
+    config.ErrorOutputPaths = []string{"web-server.log"}
 
     zapLogger, err := config.Build()
     if err != nil {

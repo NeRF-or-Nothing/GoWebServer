@@ -1,3 +1,11 @@
+// This file contains the expected structure of incoming requests to the API. These structs are used to
+// validate incoming requests, provide a consistent interface for handling requests, and to pass data to the
+// appropriate handlers. 
+
+// Note that all structs are indepedent of the user id. This is because the user id is extracted from the JWT token
+// There are a few api endpoints that are not covered by these structs, such as the /user/history endpoint.
+// This is because its really only requires the userID, which comes from the JWT token.
+
 package common
 
 import (
@@ -14,7 +22,25 @@ type RegisterRequest struct {
     Password string `json:"password" validate:"required"`
 }
 
-type VideoUploadRequest struct {
+type UpdatePasswordRequest struct {
+    OldPassword string `json:"old_password" validate:"required"`
+    NewPassword string `json:"new_password" validate:"required"`
+}
+
+type UpdateUsernameRequest struct {
+    Password    string `json:"password" validate:"required"`
+    NewUsername string `json:"new_username" validate:"required"`
+}
+
+type DeleteSceneRequest struct {
+    SceneID string `params:"scene_id" validate:"required"`
+}
+
+type DeleteUserRequest struct {
+    Password string `json:"password" validate:"required"`
+}
+
+type NewSceneRequest struct {
     File            *multipart.FileHeader `form:"file" validate:"required"`
     TrainingMode    string                `form:"training_mode" validate:"required,oneof=gaussian tensorf"`
     OutputTypes     []string              `form:"output_types" validate:"required,dive,validOutputType"`
@@ -23,11 +49,11 @@ type VideoUploadRequest struct {
     SceneName       string                `form:"scene_name"`
 }
 
-type GetNerfJobMetadataRequest struct {
+type GetSceneMetadataRequest struct {
     SceneID    string `params:"scene_id" validate:"required"`
 }
 
-type GetNerfResourceRequest struct {
+type GetSceneResourceRequest struct {
     OutputType string `params:"output_type" validate:"required"`
     SceneID    string `params:"scene_id" validate:"required"`
     Iteration  string `query:"iteration"`

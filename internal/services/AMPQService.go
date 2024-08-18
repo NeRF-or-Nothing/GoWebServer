@@ -1,12 +1,13 @@
 package services
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"os"
-	// "path/filepath"
+	"fmt"
 	"time"
+	"context"
+	"net/http"
+	"encoding/json"
+	"path/filepath"
 
 	"github.com/streadway/amqp"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -32,7 +33,7 @@ func NewAMPQService(messageBrokerDomain string, queueManager *queue.QueueListMan
 		messageBrokerDomain: messageBrokerDomain,
 		queueManager:        queueManager,
 		sceneManager:        sceneManager,
-		baseURL:             "https://host.docker.internal:5000/",
+		baseURL:             "http://host.docker.internal:5000/",
 		logger:              logger,
 	}
 
@@ -41,7 +42,7 @@ func NewAMPQService(messageBrokerDomain string, queueManager *queue.QueueListMan
 		return nil, err
 	}
 
-	// go service.startConsumers()
+	go service.startConsumers()
 
 	return service, nil
 }
@@ -82,6 +83,13 @@ func (s *AMPQService) connect() error {
 	return nil
 }
 
+
+func (s *AMPQService) startConsumers() {
+	go s.consumeSFMOut()
+	// go s.consumeNERFOut()
+}
+
+
 func (s *AMPQService) toURL(filePath string) string {
 	return s.baseURL + "worker-data/" + filePath
 }
@@ -91,10 +99,6 @@ func (s *AMPQService) PublishSFMJob(ctx context.Context, id primitive.ObjectID, 
 		"id":        id.Hex(),
 		"file_path": s.toURL(vid.FilePath),
 	}
-
-	// for k, v := range config.SfmTrainingConfig {
-	// 	job[k] = v
-	// }
 
 	jsonJob, err := json.Marshal(job)
 	if err != nil {
@@ -109,12 +113,12 @@ func (s *AMPQService) PublishSFMJob(ctx context.Context, id primitive.ObjectID, 
 		return fmt.Errorf("failed to publish SFM job: %v", err)
 	}
 
-	err = s.queueManager.AppendQueue(ctx, "sfm_list", id.Hex())
+	err = s.queueManager.AppendToQueue(ctx, "sfm_list", id.Hex())
 	if err != nil {
 		return fmt.Errorf("failed to append to sfm_list: %v", err)
 	}
 
-	err = s.queueManager.AppendQueue(ctx, "queue_list", id.Hex())
+	err = s.queueManager.AppendToQueue(ctx, "queue_list", id.Hex())
 	if err != nil {
 		return fmt.Errorf("failed to append to queue_list: %v", err)
 	}
@@ -122,6 +126,9 @@ func (s *AMPQService) PublishSFMJob(ctx context.Context, id primitive.ObjectID, 
 	s.logger.Infof("SFM Job Published with ID %s", id.Hex())
 	return nil
 }
+
+
+
 
 // func (s *AMPQService) PublishNERFJob(ctx context.Context, id primitive.ObjectID, vid *scene.Video, sfm *scene.Sfm, config *scene.TrainingConfig) error {
 // 	job := map[string]interface{}{
@@ -165,110 +172,169 @@ func (s *AMPQService) PublishSFMJob(ctx context.Context, id primitive.ObjectID, 
 // 	return nil
 // }
 
-// func (s *AMPQService) startConsumers() {
-// 	go s.consumeSFMOut()
-// 	go s.consumeNERFOut()
-// }
+func (s *AMPQService) consumeSFMOut() {
+	messages, err := s.channel.Consume("sfm-out", "", false, false, false, false, nil)
+	if err != nil {
+		s.logger.Infof("Failed to register a consumer: %v", err)
+		return
+	}
 
-// func (s *AMPQService) consumeSFMOut() {
-// 	messages, err := s.channel.Consume("sfm-out", "", false, false, false, false, nil)
-// 	if err != nil {
-// 		s.logger.Infof("Failed to register a consumer: %v", err)
-// 		return
-// 	}
+	for msg := range messages {
+		err := s.processSFMJob(msg)
+		if err != nil {
+			s.logger.Infof("Error processing SFM job: %v", err)
+			msg.Nack(false, true)
+		} else {
+			msg.Ack(false)
+		}
+	}
+}
 
-// 	for msg := range messages {
-// 		err := s.processSFMJob(msg)
-// 		if err != nil {
-// 			s.logger.Infof("Error processing SFM job: %v", err)
-// 			msg.Nack(false, true)
-// 		} else {
-// 			msg.Ack(false)
-// 		}
-// 	}
-// }
 
-// func (s *AMPQService) processSFMJob(msg amqp.Delivery) error {
-// 	var sfmData map[string]interface{}
-// 	err := json.Unmarshal(msg.Body, &sfmData)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to unmarshal SFM data: %v", err)
-// 	}
+func (s *AMPQService) processSfmJob(d amqp.Delivery) {
+	type SfmFrame struct {
+		FilePath        string      `json:"file_path"`
+		ExtrinsicMatrix [][]float64 `json:"extrinsic_matrix"`
+	}
+	
+	type SfmData struct {
+		ID               string      `json:"id"`
+		VidWidth         int         `json:"vid_width"`
+		VidHeight        int         `json:"vid_height"`
+		IntrinsicMatrix  [][]float64 `json:"intrinsic_matrix"`
+		Frames           []SfmFrame  `json:"frames"`
+		Flag             int         `json:"flag"`
+	}
+	
 
-// 	id := sfmData["id"].(string)
-// 	flag := int(sfmData["flag"].(float64))
 
-// 	if flag == 0 {
-// 		for i, frame := range sfmData["frames"].([]interface{}) {
-// 			frameMap := frame.(map[string]interface{})
-// 			url := frameMap["file_path"].(string)
-// 			filename := filepath.Base(url)
-// 			filePath := filepath.Join("data", "sfm", id, filename)
+    var sfmData SfmData
 
-// 			err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm)
-// 			if err != nil {
-// 				return fmt.Errorf("failed to create directory: %v", err)
-// 			}
+    err := json.Unmarshal(d.Body, &sfmData)
+    if err != nil {
+        s.logger.Errorf("Error unmarshalling SFM data: %v", err)
+        d.Nack(false, true)
+        return
+    }
 
-// 			// Download and save the file
-// 			// Note: Implement the actual file download logic here
+    // Extract ID from the message or use a predefined field
+    id, err := primitive.ObjectIDFromHex(sfmData.ID)
+    if err != nil {
+        s.logger.Errorf("Invalid ID format: %v", err)
+        d.Nack(false, true)
+        return
+    }
 
-// 			sfmData["frames"].([]interface{})[i].(map[string]interface{})["file_path"] = filePath
-// 		}
-// 	}
+    s.logger.Infof("SFM TASK RETURNED FOR ID %s", id.Hex())
 
-// 	delete(sfmData, "flag")
+    ctx := context.Background()
 
-// 	vid := dbschema.VideoFromMap(sfmData)
-// 	sfm := dbschema.SfmFromMap(sfmData)
+    // Process frames (download and store locally)
+    err = s.processFrames(&sfmData)
+    if err != nil {
+        s.logger.Errorf("Error processing frames: %v", err)
+        d.Nack(false, true)
+        return
+    }
 
-// 	ctx := context.Background()
+    // Update the Scene in the database
+    scene, err := s.sceneManager.GetScene(ctx, id)
+    if err != nil {
+        if err == scene.ErrSceneNotFound {
+            scene = &Scene{ID: id}
+        } else {
+            s.logger.Errorf("Error getting scene: %v", err)
+            d.Nack(false, true)
+            return
+        }
+    }
 
-// 	err = s.sceneManager.SetSfm(ctx, id, sfm)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to set SFM: %v", err)
-// 	}
+    // Update Sfm and Video
+    scene.Sfm = &Sfm{
+        IntrinsicMatrix: sfmData.IntrinsicMatrix,
+        Frames:          sfmData.Frames,
+    }
+    
+    if scene.Video == nil {
+        scene.Video = &Video{}
+    }
+    scene.Video.Width = sfmData.VidWidth
+    scene.Video.Height = sfmData.VidHeight
 
-// 	err = s.sceneManager.SetVideo(ctx, id, vid)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to set Video: %v", err)
-// 	}
+    err = s.sceneManager.SetScene(ctx, id, scene)
+    if err != nil {
+        s.logger.Errorf("Error setting scene data: %v", err)
+        d.Nack(false, true)
+        return
+    }
 
-// 	config, err := s.sceneManager.GetTrainingConfig(ctx, id)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to get training config: %v", err)
-// 	}
+    // Get the training config
+    config, err := s.sceneManager.GetTrainingConfig(ctx, id)
+    if err != nil {
+        s.logger.Errorf("Error getting training config: %v", err)
+        d.Nack(false, true)
+        return
+    }
 
-// 	err = s.queueManager.PopQueue(ctx, "sfm_list", id)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to pop from sfm_list: %v", err)
-// 	}
+    // Remove from sfm_list queue
+    err = s.queueManager.PopFromQueue("sfm_list", id.Hex())
+    if err != nil {
+        s.logger.Errorf("Error popping from sfm_list queue: %v", err)
+    }
 
-// 	if flag == 0 {
-// 		oid, err := primitive.ObjectIDFromHex(id)
-// 		if err != nil {
-// 			return fmt.Errorf("failed to convert ID to ObjectID: %v", err)
-// 		}
+    s.logger.Info("Saved finished SFM job")
 
-// 		err = s.PublishNERFJob(ctx, oid, vid, sfm, config)
-// 		if err != nil {
-// 			return fmt.Errorf("failed to publish NERF job: %v", err)
-// 		}
-// 	} else {
-// 		err = s.queueManager.PopQueue(ctx, "queue_list", id)
-// 		if err != nil {
-// 			return fmt.Errorf("failed to pop from queue_list: %v", err)
-// 		}
+    // Publish new job to nerf-in
+    err = s.PublishNerfJob(id.Hex(), scene.Video, scene.Sfm, config)
+    if err != nil {
+        s.logger.Errorf("Error publishing NERF job: %v", err)
+        d.Nack(false, true)
+        return
+    }
 
-// 		nerf := dbschema.Nerf{Flag: flag}
-// 		err = s.sceneManager.SetNerf(ctx, id, &nerf)
-// 		if err != nil {
-// 			return fmt.Errorf("failed to set Nerf: %v", err)
-// 		}
-// 	}
+    d.Ack(false)
+}
 
-// 	return nil
-// }
+func (s *AMPQService) processFrames(sfmData *SfmData) error {
+    for i, frame := range sfmData.Frames {
+        url := frame.FilePath
+        s.logger.Infof("Downloading image from %s", url)
+
+        resp, err := http.Get(url)
+        if err != nil {
+            return fmt.Errorf("error downloading image: %v", err)
+        }
+        defer resp.Body.Close()
+
+        urlPath, err := url.Parse(frame.FilePath)
+        if err != nil {
+            return fmt.Errorf("error parsing URL: %v", err)
+        }
+
+        filename := path.Base(urlPath.Path)
+        filePath := filepath.Join("data/sfm", sfmData.ID, filename)
+
+        err = os.MkdirAll(filepath.Dir(filePath), os.ModePerm)
+        if err != nil {
+            return fmt.Errorf("error creating directory: %v", err)
+        }
+
+        file, err := os.Create(filePath)
+        if err != nil {
+            return fmt.Errorf("error creating file: %v", err)
+        }
+        defer file.Close()
+
+        _, err = io.Copy(file, resp.Body)
+        if err != nil {
+            return fmt.Errorf("error writing file: %v", err)
+        }
+
+        sfmData.Frames[i].FilePath = filePath
+    }
+
+    return nil
+}
 
 // func (s *AMPQService) consumeNERFOut() {
 // 	messages, err := s.channel.Consume("nerf-out", "", false, false, false, false, nil)

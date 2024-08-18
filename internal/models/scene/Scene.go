@@ -1,3 +1,10 @@
+// This file contains the Scene struct and its members, as well as some methods to check the validity of training modes and output types,
+// converting integer keys to string keys for file paths, and getting file paths for output types.
+
+// When interacting with MongoDB, bson tags are used to specify the field names in the database.
+// For each struct field, you should add a bson tag with the field name in the database, to allow ease of serialization and deserialization.
+// Optional fields should be marked with omitempty, saving memory; i.e if a scene fails during sfm, theres no need to store nerf data.
+
 package scene
 
 import (
@@ -71,7 +78,6 @@ const (
 	TrainingModeGaussian = "gaussian"
 	TrainingModeTensorf  = "tensorf"
 )
-
 var (
 	ValidTrainingModes = []string{TrainingModeGaussian, TrainingModeTensorf}
 	ValidOutputTypes   = map[string][]string{

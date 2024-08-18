@@ -7,11 +7,11 @@ import (
     "strconv"
     "strings"
 
-    "github.com/go-playground/validator/v10"
     "github.com/gofiber/fiber/v2"
-    
-    "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
+    "github.com/go-playground/validator/v10"
+
     "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
+    "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
 )
 
 var validate *validator.Validate
@@ -44,8 +44,8 @@ func ValidateRequest(c *fiber.Ctx, req interface{}) error {
 
 // ParseVideoUploadRequest parses a video upload request from a Fiber context.
 // Returns a VideoUploadRequest struct if successful, error otherwise.
-func ParseVideoUploadRequest(c *fiber.Ctx) (*common.VideoUploadRequest, error) {
-    var req common.VideoUploadRequest
+func ParseVideoUploadRequest(c *fiber.Ctx) (*common.NewSceneRequest, error) {
+    var req common.NewSceneRequest
 
     // Handle file upload
     file, err := c.FormFile("file")

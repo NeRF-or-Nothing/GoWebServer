@@ -1,23 +1,18 @@
 package services
 
 import (
-	"context"
-	"fmt"
 	"io"
-
-	// "io"
-	// "mime/multipart"
-	// "net/http"
 	"os"
+	"fmt"
+	"context"
 	"path/filepath"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	// Internal imports
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/user"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
 )
 
 type ClientService struct {
@@ -146,7 +141,7 @@ func (s *ClientService) GetSceneMetadata(ctx context.Context, userID, sceneID pr
 	return metadata, nil
 }
 
-func (s *ClientService) HandleIncomingVideo(ctx context.Context, userID primitive.ObjectID, req *common.VideoUploadRequest) (string, error) {
+func (s *ClientService) HandleIncomingVideo(ctx context.Context, userID primitive.ObjectID, req *common.NewSceneRequest) (string, error) {
 	// Validate video file
 	if req.File == nil {
 		return "", fmt.Errorf("file not received")
@@ -222,7 +217,10 @@ func (s *ClientService) HandleIncomingVideo(ctx context.Context, userID primitiv
 		return "", err
 	}
 
-	user.AddScene(jobID)
+	if err := user.AddScene(jobID); err != nil {
+		return "", err
+	}
+
 	if err := s.userManager.UpdateUser(ctx, user); err != nil {
 		return "", err
 	}
@@ -318,4 +316,16 @@ func (s *ClientService) GetSceneName(ctx context.Context, userID, sceneID primit
 
 	s.logger.Info("Scene name retrieved successfully")
 	return sceneName, nil
+}
+
+// UpdateUserUsername updates the username of the user with the given ID. 
+// Returns nil if successful, error if the user does not exist or an error occurred.
+func (s *ClientService) UpdateUserUsername(ctx context.Context, userID primitive.ObjectID, Password, newUsername string) error {
+	return s.userManager.UpdateUsername(ctx, userID, Password, newUsername)
+}
+
+// UpdateUserPassword updates the password of the user with the given ID.
+// Returns nil if successful, error if the user does not exist or an error occurred.
+func (s *ClientService) UpdateUserPassword(ctx context.Context, userID primitive.ObjectID, oldPassword, newPassword string) error {
+	return s.userManager.UpdatePassword(ctx, userID, oldPassword, newPassword)
 }

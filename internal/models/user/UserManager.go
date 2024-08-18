@@ -1,3 +1,8 @@
+// This file contains the UserManager implementation, which is responsible for interacting with the MongoDB users collection.
+// The UserManager struct contains a pointer to the nerfdb.users MongoDB collection and a logger. It provides methods to set, get
+// and update user data in the database. Interaction with users is almost always by ID, as the ID will (almost always) be unique.
+// There is limited functionality for updating user data, as the only fields that can be updated are the username and password.
+
 package user
 
 import (
@@ -6,12 +11,19 @@ import (
 	"fmt"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 )
+
+var (
+	ErrUserNotFound = errors.New("user not found")
+	ErrUsernameTaken = errors.New("username is already taken")
+	ErrUserNoAccess = errors.New("user does not have access to this scene")
+)
+
 
 type UserManager struct {
 	collection *mongo.Collection
@@ -129,4 +141,42 @@ func (um *UserManager) UserHasJobAccess(ctx context.Context, userID, jobID primi
 		}
 	}
 	return false, nil
+}
+
+// UpdatePassword updates the user's password. Verifies the old password before setting the new password.
+// Returns nil if successful, or an error if the old password is incorrect or an error occurred while updating the password.
+func (um *UserManager) UpdatePassword(ctx context.Context, userID primitive.ObjectID, oldPassword, newPassword string) error {
+	user, err := um.GetUserByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	
+	err = user.CheckPassword(oldPassword)
+	if err != nil {
+		return err
+	}
+	return user.SetPassword(newPassword)
+}
+
+// UpdateUsername updates the user's username. Checks if the new username is already taken.
+// Requires the user's password to verify the change.
+// Returns nil if successful, or an error if the new username is already taken or an error occurred while updating the username.
+func (um *UserManager) UpdateUsername(ctx context.Context, userID primitive.ObjectID, userPassword, newUsername string) error {
+	_, err := um.GetUserByUsername(ctx, newUsername)
+	if err == nil {
+		return ErrUsernameTaken
+	}
+	
+	user, err := um.GetUserByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	err = user.CheckPassword(userPassword)
+	if err != nil {
+		return err
+	}
+
+	user.Username = newUsername
+	return um.UpdateUser(ctx, user)
 }

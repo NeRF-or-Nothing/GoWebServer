@@ -1,9 +1,9 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"os"
+	"fmt"
+	"context"
 	"path/filepath"
 
 	"github.com/joho/godotenv"
@@ -11,11 +11,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/web"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/user"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/queue"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/user"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/web"
 )
 
 func exploreDirectory(root string) error {

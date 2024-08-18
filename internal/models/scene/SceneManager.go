@@ -1,13 +1,17 @@
+// This file contains the SceneManager implementation, which is responsible for interacting with the MongoDB scene collection.
+// The SceneManager struct contains a pointer to the nerfdb.scenes MongoDB collection and a logger. It provides methods to set and
+// get scene data from the database. Interaction with scenes is almost always by ID, as the ID will (almost always) be unique.
+
 package scene
 
 import (
-	"context"
 	"errors"
+	"context"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 )
@@ -26,6 +30,7 @@ type SceneManager struct {
 	logger     *log.Logger
 }
 
+// NewSceneManager creates a new SceneManager with the given MongoDB client and logger.
 func NewSceneManager(client *mongo.Client, logger *log.Logger, unittest bool) *SceneManager {
 	return &SceneManager{
 		collection: client.Database("nerfdb").Collection("scenes"),
@@ -33,6 +38,7 @@ func NewSceneManager(client *mongo.Client, logger *log.Logger, unittest bool) *S
 	}
 }
 
+// SetTrainingConfig sets the TrainingConfig data in the database by the scene ID.
 func (sm *SceneManager) SetTrainingConfig(ctx context.Context, id primitive.ObjectID, config *TrainingConfig) error {
 	result, err := sm.collection.UpdateOne(
 		ctx,
@@ -49,6 +55,7 @@ func (sm *SceneManager) SetTrainingConfig(ctx context.Context, id primitive.Obje
 	return nil
 }
 
+// SetScene sets the Scene data in the database by the scene ID.
 func (sm *SceneManager) SetScene(ctx context.Context, id primitive.ObjectID, scene *Scene) error {
 	result, err := sm.collection.UpdateOne(
 		ctx,
@@ -65,6 +72,7 @@ func (sm *SceneManager) SetScene(ctx context.Context, id primitive.ObjectID, sce
 	return nil
 }
 
+// SetVideo sets the Video data in the database by the scene ID.
 func (sm *SceneManager) SetVideo(ctx context.Context, id primitive.ObjectID, vid *Video) error {
 	result, err := sm.collection.UpdateOne(
 		ctx,
@@ -81,6 +89,7 @@ func (sm *SceneManager) SetVideo(ctx context.Context, id primitive.ObjectID, vid
 	return nil
 }
 
+// SetSfm sets the Sfm data in the database by the scene ID.
 func (sm *SceneManager) SetSfm(ctx context.Context, id primitive.ObjectID, sfm *Sfm) error {
 	result, err := sm.collection.UpdateOne(
 		ctx,
@@ -97,6 +106,7 @@ func (sm *SceneManager) SetSfm(ctx context.Context, id primitive.ObjectID, sfm *
 	return nil
 }
 
+// SetNerf sets the Nerf data in the database by the scene ID.
 func (sm *SceneManager) SetNerf(ctx context.Context, id primitive.ObjectID, nerf *Nerf) error {
 	result, err := sm.collection.UpdateOne(
 		ctx,
@@ -113,6 +123,7 @@ func (sm *SceneManager) SetNerf(ctx context.Context, id primitive.ObjectID, nerf
 	return nil
 }
 
+// SetSceneName sets the name of the scene in the database by its ID.
 func (sm *SceneManager) SetSceneName(ctx context.Context, id primitive.ObjectID, name string) error {
 	result, err := sm.collection.UpdateOne(
 		ctx,
@@ -129,6 +140,7 @@ func (sm *SceneManager) SetSceneName(ctx context.Context, id primitive.ObjectID,
 	return nil
 }
 
+// GetSceneName retrieves the name of the scene from the database by its ID.
 func (sm *SceneManager) GetSceneName(ctx context.Context, id primitive.ObjectID) (string, error) {
 	var result struct {
 		Name string `bson:"name"`
@@ -143,6 +155,7 @@ func (sm *SceneManager) GetSceneName(ctx context.Context, id primitive.ObjectID)
 	return result.Name, nil
 }
 
+// GetTrainingConfig retrieves the TrainingConfig data from the database by its ID.
 func (sm *SceneManager) GetTrainingConfig(ctx context.Context, id primitive.ObjectID) (*TrainingConfig, error) {
 	var result struct {
 		Config *TrainingConfig `bson:"config"`
@@ -160,6 +173,7 @@ func (sm *SceneManager) GetTrainingConfig(ctx context.Context, id primitive.Obje
 	return result.Config, nil
 }
 
+// GetScene retrieves the Scene data from the database by its ID.
 func (sm *SceneManager) GetScene(ctx context.Context, id primitive.ObjectID) (*Scene, error) {
 	var scene Scene
 	err := sm.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&scene)
@@ -172,6 +186,7 @@ func (sm *SceneManager) GetScene(ctx context.Context, id primitive.ObjectID) (*S
 	return &scene, nil
 }
 
+// GetVideo retrieves the Video data from the database by its ID.
 func (sm *SceneManager) GetVideo(ctx context.Context, id primitive.ObjectID) (*Video, error) {
 	var result struct {
 		Video *Video `bson:"video"`
@@ -189,6 +204,7 @@ func (sm *SceneManager) GetVideo(ctx context.Context, id primitive.ObjectID) (*V
 	return result.Video, nil
 }
 
+// GetSfm retrieves the Sfm data from the database by its ID.
 func (sm *SceneManager) GetSfm(ctx context.Context, id primitive.ObjectID) (*Sfm, error) {
 	var result struct {
 		Sfm *Sfm `bson:"sfm"`
@@ -206,6 +222,7 @@ func (sm *SceneManager) GetSfm(ctx context.Context, id primitive.ObjectID) (*Sfm
 	return result.Sfm, nil
 }
 
+// GetNerf retrieves the Nerf data from the database by its ID.
 func (sm *SceneManager) GetNerf(ctx context.Context, id primitive.ObjectID) (*Nerf, error) {
 	var result struct {
 		Nerf *Nerf `bson:"nerf"`
@@ -223,6 +240,7 @@ func (sm *SceneManager) GetNerf(ctx context.Context, id primitive.ObjectID) (*Ne
 	return result.Nerf, nil
 }
 
+// DeleteScene deletes a scene from the database by its ID.
 func (sm *SceneManager) DeleteScene(ctx context.Context, id primitive.ObjectID) error {
 	result, err := sm.collection.DeleteOne(ctx, bson.M{"_id": id})
 	if err != nil {
