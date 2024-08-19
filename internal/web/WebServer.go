@@ -4,23 +4,23 @@
 package web
 
 import (
-	"os"
-	"fmt"
 	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
-	"net/http"
-	"path/filepath"
 
-	"github.com/golang-jwt/jwt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/golang-jwt/jwt"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/queue"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
 )
 
 type WebServer struct {
@@ -58,17 +58,20 @@ func (s *WebServer) Run(ip string, port int) error {
 
 // SetupRoutes sets up the routes for the web server.
 func (s *WebServer) SetupRoutes() {
-	s.app.Post("/user/login", s.loginUser)
-	s.app.Post("/user/register", s.registerUser)
-	s.app.Patch("/user/account/update/password", s.tokenRequired(s.updateUserPassword))
+	s.app.Post("/user/account/login", s.loginUser)
+	s.app.Post("/user/account/register", s.registerUser)
 	s.app.Patch("/user/account/update/username", s.tokenRequired(s.updateUserUsername))
-	s.app.Delete("/user/account/delete/scene", s.tokenRequired(s.deleteUserScene))
-	s.app.Delete("/user/account/delete/account", s.tokenRequired(s.deleteUser))
+	s.app.Patch("/user/account/update/password", s.tokenRequired(s.updateUserPassword))
+	s.app.Delete("/user/account/delete", s.tokenRequired(s.deleteUser))
+	
+	s.app.Delete("/user/scene/delete/:scene_id", s.tokenRequired(s.deleteUserScene))
 	s.app.Post("/user/scene/new", s.tokenRequired(s.receiveVideo))
 	s.app.Get("/user/scene/metadata/:scene_id", s.tokenRequired(s.getSceneMetadata))
 	s.app.Get("/user/scene/thumbnail/:scene_id", s.tokenRequired(s.getSceneThumbnail))
 	s.app.Get("/user/scene/name/:scene_id", s.tokenRequired(s.getSceneName))
-	s.app.Get("/user/history", s.tokenRequired(s.getUserSceneHistory))
+	s.app.Get("/user/scene/history", s.tokenRequired(s.getUserSceneHistory))
+	s.app.Get("/user/scene/output/:scene_id/:output_type", s.tokenRequired(s.getSceneOutput))
+
 	s.app.Get("/routes", s.getRoutes)
 	s.app.Get("/health", s.healthCheck)
 	s.app.Get("/worker-data/*", s.getWorkerData)
@@ -100,7 +103,7 @@ func (s *WebServer) SetupFileStructure() {
 
 // tokenRequired is a middleware that checks for a valid JWT token in the Authorization header.
 // The token is expected to be in the format: `Bearer <token>`. A valid token will decode to a user ID (of type String(primitive.ObjectID)).
-// It is expected that the user ID is stored in the token's `sub` claim. Validation of the user ID is not performed,
+// It is expected that the user ID is stored in the token's `sub` claim. Validation of the user's existence is not performed,
 // and instead the user ID is stored in the request context for use in the handler.
 func (s *WebServer) tokenRequired(handler fiber.Handler) fiber.Handler {
 	return func(c *fiber.Ctx) error {
@@ -254,7 +257,6 @@ func (s *WebServer) deleteUser(c* fiber.Ctx) error {
 	return fiber.NewError(http.StatusNotImplemented, "Not implemented")
 }
 
-
 // receiveVideo handles the new scene request. It is a JWT protected route.
 //It expects a multipart form with the following fields:
 //- file: 
@@ -284,6 +286,11 @@ func (s *WebServer) receiveVideo(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	if req.TrainingMode == "tensorf" {
+		s.logger.Info("Tensorf training mode is now deprecated. Please use gaussian training mode.")
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Tensorf training mode is now deprecated. Please use gaussian training mode."})
+	}
+
 	sceneID, err := s.clientService.HandleIncomingVideo(context.TODO(), userID, req)
 	if err != nil {
 		s.logger.Info("Video processing failed:", err.Error())
@@ -293,7 +300,6 @@ func (s *WebServer) receiveVideo(c *fiber.Ctx) error {
 	s.logger.Infof("Video received and processing scene %s. Check back later for updates.\n", sceneID)
 	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{"id": sceneID, "message": "Video received and processing scene. Check back later for updates."})
 }
-
 
 // getSceneMetadata handles the request to get the metadata for a scene. It is a JWT protected route.
 // It expects a path parameter `scene_id` with the scene ID.
@@ -413,6 +419,39 @@ func (s *WebServer) getSceneName(c *fiber.Ctx) error {
 	}
 
 	return c.Status(http.StatusOK).JSON(fiber.Map{"scene_name": sceneName})
+}
+
+// getSceneOutput handles the request to get the output for a scene. It is a JWT protected route.
+// It expects a path parameter `scene_id` with the scene ID and a path parameter `output_type` with the output type.
+// The user can optionally specify a query parameter `iteration` to get the output at a specific iteration.
+// If the iteration is not specified, the latest output is returned.
+func (s *WebServer) getSceneOutput(c *fiber.Ctx) error {
+	var req common.GetSceneOutputRequest
+	if err := ValidateRequest(c, &req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	sceneID, err := primitive.ObjectIDFromHex(req.SceneID)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid scene ID"})
+	}
+
+	userID, err := primitive.ObjectIDFromHex(c.Locals("userID").(string))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
+	}
+
+	outputPath, err := s.clientService.GetSceneOutputPath(context.TODO(), userID, sceneID, req.OutputType, req.Iteration)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	outputData, err := os.ReadFile(outputPath)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(http.StatusOK).Send(outputData)
 }
 
 // getWorkerData handles the request to send data between workers.

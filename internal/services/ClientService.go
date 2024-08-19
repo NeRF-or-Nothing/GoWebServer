@@ -1,18 +1,19 @@
 package services
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"os"
-	"fmt"
-	"context"
 	"path/filepath"
+	"strconv"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/user"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/user"
 )
 
 type ClientService struct {
@@ -228,12 +229,8 @@ func (s *ClientService) HandleIncomingVideo(ctx context.Context, userID primitiv
 	return jobID.Hex(), nil
 }
 
-// func (s *ClientService) GetNerfResource(ctx context.Context, userID, sceneID primitive.ObjectID, resourceType, iteration, rangeHeader string) {
-// 	return nil
-// }
-
 // GetUserSceneHistory returns a list SceneID's for completed scenes that the user has access to.
-// Returns (nil , err) if an error other than Scene/Nerf not found occurs. 
+// Returns (nil , error) if an error other than Scene/Nerf not found occurs. 
 func (s *ClientService) GetUserSceneHistory(ctx context.Context, userID primitive.ObjectID) ([]string, error) {
 	s.logger.Info("Get user history request received")
 
@@ -270,7 +267,7 @@ func (s *ClientService) GetSceneThumbnailPath(ctx context.Context, userID, scene
 
 	// Verify user access to scene
 	if err := s.verifyUserAccess(ctx, userID, sceneID); err != nil {
-		s.logger.Info("Invalid user ID:", err.Error())
+		s.logger.Info("Invalid user ID access:", err.Error())
 		return "", err
 	}
 
@@ -304,7 +301,7 @@ func (s *ClientService) GetSceneName(ctx context.Context, userID, sceneID primit
 
 	// Verify user access to scene
 	if err := s.verifyUserAccess(ctx, userID, sceneID); err != nil {
-		s.logger.Info("Invalid user ID:", err.Error())
+		s.logger.Info("Invalid user ID access:", err.Error())
 		return "", err
 	}
 
@@ -318,10 +315,48 @@ func (s *ClientService) GetSceneName(ctx context.Context, userID, sceneID primit
 	return sceneName, nil
 }
 
+// GetSceneOutputPath returns the path to the output file for the given scene, output type, and iteration.
+func (s *ClientService) GetSceneOutputPath(ctx context.Context, userID, sceneID primitive.ObjectID, outputType, iteration string) (string, error) {
+	s.logger.Info("Get scene output request received")
+
+	// Verify user access to scene
+	if err := s.verifyUserAccess(ctx, userID, sceneID); err != nil {
+		s.logger.Info("Invalid user ID access:", err.Error())
+		return "", err
+	}
+
+	nerf, err := s.sceneManager.GetNerf(ctx, sceneID)
+	if err != nil {
+		s.logger.Info("Invalid scene ID:", err.Error())
+		return "", err
+	}
+	
+	intIteration := -1
+	if iteration == "" {
+		intIteration = -1
+	} else {
+		intIteration, err = strconv.Atoi(iteration)
+		if err != nil {
+			s.logger.Info("Invalid iteration:", err.Error())
+			return "", err
+		}
+	}
+
+	outputPath, err := nerf.GetFilePathForTypeAndIter(outputType, intIteration)
+	if err != nil {
+		s.logger.Info("Error getting output file:", err.Error())
+		return "", err
+	}
+
+	s.logger.Info("Output file retrieved successfully")
+	return outputPath, nil
+}
+
+
 // UpdateUserUsername updates the username of the user with the given ID. 
 // Returns nil if successful, error if the user does not exist or an error occurred.
-func (s *ClientService) UpdateUserUsername(ctx context.Context, userID primitive.ObjectID, Password, newUsername string) error {
-	return s.userManager.UpdateUsername(ctx, userID, Password, newUsername)
+func (s *ClientService) UpdateUserUsername(ctx context.Context, userID primitive.ObjectID, password, newUsername string) error {
+	return s.userManager.UpdateUsername(ctx, userID, password, newUsername)
 }
 
 // UpdateUserPassword updates the password of the user with the given ID.

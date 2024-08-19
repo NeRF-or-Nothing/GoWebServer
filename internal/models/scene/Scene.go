@@ -5,72 +5,82 @@
 // For each struct field, you should add a bson tag with the field name in the database, to allow ease of serialization and deserialization.
 // Optional fields should be marked with omitempty, saving memory; i.e if a scene fails during sfm, theres no need to store nerf data.
 
+// When interfacting with workers (and consequently json-based ampq), json tags are used to specify the field names in the JSON payload.
+// For each struct field, you should add a json tag with the field name in the JSON payload, to allow ease of marshalling and unmarshalling.
+
 package scene
 
 import (
-	"strconv"
+	"errors"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+var (
+	ErrInvalidOutputType = errors.New("invalid output type")
+	ErrNoOutputPaths = errors.New("no output path found")
+)
+
+
+// Scene represents a scene and its components
+type Scene struct {
+    ID     primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+    Status int                `bson:"status" json:"status"`
+    Video  *Video             `bson:"video,omitempty" json:"video,omitempty"`
+    Sfm    *Sfm               `bson:"sfm,omitempty" json:"sfm,omitempty"`
+    Nerf   *Nerf              `bson:"nerf,omitempty" json:"nerf,omitempty"`
+    Config *TrainingConfig    `bson:"config,omitempty" json:"config,omitempty"`
+}
+
+
 // TrainingConfig represents the configuration for training
 type TrainingConfig struct {
-	SfmTrainingConfig  *SfmTrainingConfig  `bson:"sfm_training_config,omitempty"`
-	NerfTrainingConfig *NerfTrainingConfig `bson:"nerf_training_config,omitempty"`
+	SfmTrainingConfig  *SfmTrainingConfig  `bson:"sfm_training_config,omitempty" json:"sfm_training_config,omitempty"`
+	NerfTrainingConfig *NerfTrainingConfig `bson:"nerf_training_config,omitempty" json:"nerf_training_config,omitempty"`
 }
 
 // NerfTrainingConfig represents the configuration for NeRF training
 type NerfTrainingConfig struct {
-	TrainingMode    string   `bson:"training_mode"`
-	OutputTypes     []string `bson:"output_types"`
-	SaveIterations  []int    `bson:"save_iterations"`
-	TotalIterations int      `bson:"total_iterations"`
+	TrainingMode    string   `bson:"training_mode" json:"training_mode"`
+	OutputTypes     []string `bson:"output_types" json:"output_types"`
+	SaveIterations  []int    `bson:"save_iterations" json:"save_iterations"`
+	TotalIterations int      `bson:"total_iterations" json:"total_iterations"`
 }
 
 // SfmTrainingConfig represents the configuration for SfM training
 type SfmTrainingConfig struct {
+	// Add fields as needed
 }
 
 // Frame represents a single frame in the SfM process
 type Frame struct {
-	FilePath        string      `bson:"file_path"`
-	ExtrinsicMatrix [][]float64 `bson:"extrinsic_matrix"`
+    FilePath        string      `bson:"file_path" json:"file_path"`
+    ExtrinsicMatrix [][]float64 `bson:"extrinsic_matrix" json:"extrinsic_matrix"`
 }
 
 // Sfm represents the Structure from Motion data from Colmap worker.
 type Sfm struct {
-	IntrinsicMatrix [][]float64 `bson:"intrinsic_matrix"`
-	Frames          []Frame     `bson:"frames"`
-	WhiteBackground bool        `bson:"white_background"`
+    IntrinsicMatrix [][]float64 `bson:"intrinsic_matrix" json:"intrinsic_matrix"`
+    Frames          []Frame     `bson:"frames" json:"frames"`
+    WhiteBackground bool        `bson:"white_background" json:"white_background"`
 }
-
 // Video represents video metadata
 type Video struct {
-	FilePath   string `bson:"file_path"`
-	Width      int    `bson:"width"`
-	Height     int    `bson:"height"`
-	FPS        int    `bson:"fps"`
-	Duration   int    `bson:"duration"`
-	FrameCount int    `bson:"frame_count"`
+    FilePath   string `bson:"file_path" json:"file_path"`
+    Width      int    `bson:"width" json:"width"`
+    Height     int    `bson:"height" json:"height"`
+    FPS        int    `bson:"fps" json:"fps"`
+    Duration   int    `bson:"duration" json:"duration"`
+    FrameCount int    `bson:"frame_count" json:"frame_count"`
 }
 
-// Scene represents a complete scene with all its components
-type Scene struct {
-	ID     primitive.ObjectID `bson:"_id,omitempty"`
-	Status int                `bson:"status"`
-	Video  *Video             `bson:"video,omitempty"`
-	Sfm    *Sfm               `bson:"sfm,omitempty"`
-	Nerf   *Nerf              `bson:"nerf,omitempty"`
-	Config *TrainingConfig    `bson:"config,omitempty"`
-}
-
-// Nerf represents the finished nerf training
+// Nerf represents the finished nerf training. Int Keys should be strictly greater than 0.
 type Nerf struct {
-	ModelFilePathsMap      map[int]string `bson:"model_file_paths,omitempty"`
-	SplatCloudFilePathsMap map[int]string `bson:"splat_cloud_file_paths,omitempty"`
-	PointCloudFilePathsMap map[int]string `bson:"point_cloud_file_paths,omitempty"`
-	VideoFilePathsMap      map[int]string `bson:"video_file_paths,omitempty"`
-	Flag                   int            `bson:"flag"`
+    ModelFilePathsMap      map[int]string `bson:"model_file_paths,omitempty" json:"model_file_paths,omitempty"`
+    SplatCloudFilePathsMap map[int]string `bson:"splat_cloud_file_paths,omitempty" json:"splat_cloud_file_paths,omitempty"`
+    PointCloudFilePathsMap map[int]string `bson:"point_cloud_file_paths,omitempty" json:"point_cloud_file_paths,omitempty"`
+    VideoFilePathsMap      map[int]string `bson:"video_file_paths,omitempty" json:"video_file_paths,omitempty"`
+    Flag                   int            `bson:"flag" json:"flag"`
 }
 
 // Constants for valid training modes and output types
@@ -84,7 +94,8 @@ var (
 		TrainingModeGaussian: {"splat_cloud", "point_cloud", "video"},
 		TrainingModeTensorf:  {"model", "video"},
 	}
-)
+)	
+
 
 // IsValidTrainingMode checks if the given training mode is valid
 func (Nerf) IsValidTrainingMode(mode string) bool {
@@ -110,28 +121,43 @@ func (Nerf) IsValidOutputType(trainingMode, outputType string) bool {
 	return false
 }
 
-// ConvertIntKeysToString converts a map with integer keys to a map with string keys.
-// Used to convert the file paths map to a map that can be returned as JSON.
-func ConvertIntKeysToString(m map[int]string) map[string]string {
-	result := make(map[string]string)
-	for k, v := range m {
-		result[strconv.Itoa(k)] = v
-	}
-	return result
-}
-
-// GetFilePathsForOutputType returns the file paths for a single given output type.\
-func (n *Nerf) GetFilePathsForOutputType(outputType string) map[string]string {
+// GetFilePathsForTypeAndIter returns the file path for a single given output type.
+// Iteration is the key in the file paths map, and should be > 0. If iteration is -1, the last iteration is returned.
+func (n *Nerf) GetFilePathForTypeAndIter(outputType string, iteration int) (string, error) {
+	var filePathsMap map[int]string
+	
 	switch outputType {
 	case "model":
-		return ConvertIntKeysToString(n.ModelFilePathsMap)
+		filePathsMap = n.ModelFilePathsMap
 	case "splat_cloud":
-		return ConvertIntKeysToString(n.SplatCloudFilePathsMap)
+		filePathsMap = n.SplatCloudFilePathsMap
 	case "point_cloud":
-		return ConvertIntKeysToString(n.PointCloudFilePathsMap)
+		filePathsMap = n.PointCloudFilePathsMap
 	case "video":
-		return ConvertIntKeysToString(n.VideoFilePathsMap)
+		filePathsMap = n.VideoFilePathsMap
 	default:
-		return make(map[string]string)
+		return "", ErrInvalidOutputType
 	}
+
+	if iteration == -1 {
+		iteration = getMaxKey(filePathsMap)
+	}
+
+	filePath, ok := filePathsMap[iteration]
+	if !ok {
+		return "", ErrNoOutputPaths
+	}
+	return filePath, nil
+}
+
+// GetMaxKey returns the maximum key in a map with positive integer keys.
+// Internally used to get the last iteration for a given output type.
+func getMaxKey(m map[int]string) int {
+	max := 0
+	for k := range m {
+		if k > max {
+			max = k
+		}
+	}
+	return max
 }
