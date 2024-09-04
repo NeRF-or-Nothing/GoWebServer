@@ -8,7 +8,7 @@ system architecture, consider visiting the [Complete Backend](https://github.com
 
 Most of our services are expected to run in their own docker container, this included.
 
-If you want to contribute to the code base, we suggest reading the [Wiki]() First, and then diving deeper into the go doc's and code base.
+If you want to contribute to the code base, we suggest reading the [Wiki](https://github.com/NeRF-or-Nothing/GoWebServer/wiki) First, and then diving deeper into the go doc's and code base.
 
 # Running the Server
 Make sure you have the following installed and running on their respective URLs.
