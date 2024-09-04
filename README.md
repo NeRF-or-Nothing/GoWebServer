@@ -38,7 +38,7 @@ Make sure you have the following installed:
 3. Build the and run image
   ```
   docker build -t web-server
-  docker run web-ser
+  docker run web-server
   ```
 
 ## On my machine (No Docker)
