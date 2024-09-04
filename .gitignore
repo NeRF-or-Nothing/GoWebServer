@@ -1,0 +1,7 @@
+.env
+.env*.local
+
+/data/raw/videos/*
+/data/sfm/*
+/data/nerf/*
+web-server.log
