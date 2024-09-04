@@ -21,10 +21,10 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/queue"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/user"
+	"github.com/NeRF-or-Nothing/go-web-server/internal/log"
+	"github.com/NeRF-or-Nothing/go-web-server/internal/models/queue"
+	"github.com/NeRF-or-Nothing/go-web-server/internal/models/scene"
+	"github.com/NeRF-or-Nothing/go-web-server/internal/models/user"
 )
 
 type ClientService struct {

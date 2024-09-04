@@ -12,7 +12,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
+	"github.com/NeRF-or-Nothing/go-web-server/internal/models/scene"
 )
 
 var validate *validator.Validate
