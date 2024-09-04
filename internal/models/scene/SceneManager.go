@@ -5,23 +5,28 @@
 package scene
 
 import (
-	"errors"
 	"context"
+	"errors"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 )
 
 // Custom errors
 var (
-	ErrSceneNotFound          = errors.New("scene not found")
-	ErrVideoNotFound          = errors.New("video not found")
-	ErrSfmNotFound            = errors.New("sfm not found")
-	ErrNerfNotFound           = errors.New("nerf not found")
+	// ErrSceneNotFound is returned when a requested scene is not found in the database.
+	ErrSceneNotFound = errors.New("scene not found")
+	// ErrVideoNotFound is returned when a requested video is not found in the database.
+	ErrVideoNotFound = errors.New("video not found")
+	// ErrSfmNotFound is returned when a requested sfm is not found in the database.
+	ErrSfmNotFound = errors.New("sfm not found")
+	// ErrNerfNotFound is returned when a requested nerf is not found in the database.
+	ErrNerfNotFound = errors.New("nerf not found")
+	// ErrTrainingConfigNotFound is returned when a requested training config is not found in the database.
 	ErrTrainingConfigNotFound = errors.New("training config not found")
 )
 

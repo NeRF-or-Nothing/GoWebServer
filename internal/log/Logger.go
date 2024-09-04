@@ -1,8 +1,8 @@
 package log
 
 import (
-    "go.uber.org/zap"
-    "go.uber.org/zap/zapcore"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Logger is a wrapper around zap.SugaredLogger
@@ -11,13 +11,18 @@ type Logger struct {
 }
 
 // NewLogger creates a new Logger instance
-func NewLogger(development bool) (*Logger, error) {
+func NewLogger(development, debug bool) (*Logger, error) {
     var config zap.Config
     if development {
         config = zap.NewDevelopmentConfig()
     } else {
         config = zap.NewProductionConfig()
     }
+    if debug {
+        config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+    } else {
+        config.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+    }        
 
     config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
     config.OutputPaths = []string{"web-server.log"}

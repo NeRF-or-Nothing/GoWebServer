@@ -4,10 +4,13 @@
 
 // Note that all structs are indepedent of the user id. This is because the user id is extracted from the JWT token
 // There are a few api endpoints that are not covered by these structs, such as the /user/scene/history endpoint.
-// This is because its really only requires the userID, which comes from the JWT token. Worker data is also not included
+// This is because its really only requires the userID, which comes from the JWT token. Worker data is also not included,
 // but should probably be included in the future.
 
-package common
+// If you would like to implement more precise validation, you can create custom validators for each field (like validOutputType)
+// Please implement these in RequestValidation.go.
+
+package web
 
 import (
 	"mime/multipart"
@@ -68,7 +71,10 @@ type GetSceneNameRequest struct {
 	SceneID string `params:"scene_id" validate:"required"`
 }
 
-type GetQueuePositionRequest struct {
-	QueueID string `query:"queueid" validate:"required"`
-	TaskID  string `query:"id" validate:"required"`
+type GetSceneProgressRequest struct {
+	SceneID string `params:"scene_id" validate:"required,hexadecimal,len=24"`
+}
+
+type GetWorkerDataRequest struct {
+	Path string `params:"path" validate:"required"`
 }

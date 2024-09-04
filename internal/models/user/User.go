@@ -8,26 +8,18 @@ package user
 
 import (
 	"errors"
+	"slices"
 
-	"golang.org/x/crypto/bcrypt"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/crypto/bcrypt"
 )
 
-var (	
-	ErrSceneIDNotFound 	 	= errors.New("scene ID not found in User scene list")
+var (
+	// ErrSceneIDNotFound is returned when a scene ID is not found in the user's scene list
+	ErrSceneIDNotFound = errors.New("scene ID not found in User scene list")
+	// ErrSceneIDAlreadyExists is returned when a scene ID is already in the user's scene list
 	ErrSceneIDAlreadyExists = errors.New("scene ID already exists in user scene list")
 )
-
-// contains checks if a primitive.ObjectID is in a slice of primitive.ObjectIDs
-func contains(arr []primitive.ObjectID, str primitive.ObjectID) bool {
-	for _, a := range arr {
-		if a == str {
-			return true
-		}
-	}
-	return false
-}
-
 
 // User represents a user in the system
 type User struct {
@@ -39,8 +31,8 @@ type User struct {
 
 // AddScene adds a scene ID to the user's list of scenes
 // Returns an ErrSceneIDAlreadyExists if the scene ID is already in the user's scene list
-func (u *User) AddScene(sceneID primitive.ObjectID) (error) {
-	if contains(u.SceneIDs, sceneID) {
+func (u *User) AddScene(sceneID primitive.ObjectID) error {
+	if slices.Contains(u.SceneIDs, sceneID) {
 		return ErrSceneIDAlreadyExists
 	}
 	u.SceneIDs = append(u.SceneIDs, sceneID)
@@ -49,10 +41,10 @@ func (u *User) AddScene(sceneID primitive.ObjectID) (error) {
 
 // RemoveScene removes a scene ID from the user's list of scenes
 // Returns an ErrSceneIDNotFound if the scene ID is not found in the user's scene list
-func (u *User) RemoveScene(sceneID primitive.ObjectID) (error) {
+func (u *User) RemoveScene(sceneID primitive.ObjectID) error {
 	for i, id := range u.SceneIDs {
 		if id == sceneID {
-			u.SceneIDs = append(u.SceneIDs[:i], u.SceneIDs[i+1:]...)
+			u.SceneIDs = slices.Delete(u.SceneIDs, i, i+1)
 			return nil
 		}
 	}

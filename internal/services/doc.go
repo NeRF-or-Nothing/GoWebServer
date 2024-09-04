@@ -1,6 +1,9 @@
-// Package services contains the implementation of the services used by the web server.
+// Package services contains the implementation of all services used by the web server.
+//
 // The services are responsible for interacting with the database and performing anything that is not strictly HTTP-related.
-// The services are injected into the handlers, which are responsible for handling HTTP requests.
+// The services are injected into the web server, and are used to handle requests dispatched by it.
+//
+// Current services include:
 //   - AMPQService:
 //     Is a ampq 0.9.1 broker-agnostic handler that is used to consume from / publish to additional workers (sfm, nerf, etc)
 //   - ClientService:

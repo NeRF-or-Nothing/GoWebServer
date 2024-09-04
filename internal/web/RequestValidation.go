@@ -1,17 +1,18 @@
-// RequestValidation.go
+// This file contains the actual validator implementation for incoming http requests.
+//
+// You can implement custom validators for each field in this file and reference them in the request structs.
 
 package web
 
 import (
-    "errors"
-    "strconv"
-    "strings"
+	"errors"
+	"strconv"
+	"strings"
 
-    "github.com/gofiber/fiber/v2"
-    "github.com/go-playground/validator/v10"
+	"github.com/go-playground/validator/v10"
+	"github.com/gofiber/fiber/v2"
 
-    "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/common"
-    "github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
+	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/models/scene"
 )
 
 var validate *validator.Validate
@@ -22,30 +23,45 @@ func init() {
     validate.RegisterValidation("validOutputType", validateOutputType)
 }
 
-// ValidateRequest validates a request using the Fiber context and a request struct.
+// ValidateRequest validates a request using a Fiber context and a request struct.
+// It parses the request differently based on HTTP method.
 func ValidateRequest(c *fiber.Ctx, req interface{}) error {
-    // For JSON payloads
-    if err := c.BodyParser(req); err != nil {
-        return err
-    }
-    
-    // For query parameters
-    if err := c.QueryParser(req); err != nil {
-        return err
-    }
-    
-    // For path parameters
-    if err := c.ParamsParser(req); err != nil {
-        return err
+    // Check the HTTP method
+    method := c.Method()
+
+    switch method {
+    case "GET":
+        // For GET requests, we only need to parse query and path parameters
+        if err := c.QueryParser(req); err != nil {
+            return err
+        }
+        if err := c.ParamsParser(req); err != nil {
+            return err
+        }
+    case "POST", "PUT", "PATCH":
+        // For requests with potential body content
+        if err := c.BodyParser(req); err != nil {
+            return err
+        }
+        // Also parse query parameters for these methods if needed
+        if err := c.QueryParser(req); err != nil {
+            return err
+        }
+    default:
+        // Unsupported HTTP method
     }
 
     return validate.Struct(req)
 }
 
-// ParseVideoUploadRequest parses a video upload request from a Fiber context.
-// Returns a VideoUploadRequest struct if successful, error otherwise.
-func ParseVideoUploadRequest(c *fiber.Ctx) (*common.NewSceneRequest, error) {
-    var req common.NewSceneRequest
+// ParseNewSceneRequest is a custom validator that parses a video upload request from a Fiber context.
+//
+// The default go-validator is not great with file uploads, so we need to handle the file upload here, and just 
+// redundantly validate the other form fields.
+//
+// Returns a NewSceneRequest struct if successful, error otherwise.
+func ParseNewSceneRequest(c *fiber.Ctx) (*NewSceneRequest, error) {
+    var req NewSceneRequest
 
     // Handle file upload
     file, err := c.FormFile("file")

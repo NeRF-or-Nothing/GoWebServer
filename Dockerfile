@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:experimental
+ # syntax=docker/dockerfile:experimental
 
 # BUILD STAGE
 FROM golang:1.23.0-alpine3.20 AS builder
@@ -19,6 +19,8 @@ COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -o /go-web-server ./cmd/main
+    # go build -gcflags="all=-N -l" -o /go-web-server ./cmd/main
+
 
 # RUN STAGE
 FROM alpine:3.20
@@ -30,5 +32,8 @@ COPY secrets ./secrets
 # COPY data ./data
 
 EXPOSE 5000
+
+# For debugging
+ENV GOTRACEBACK=crash
 
 CMD ["./go-web-server"]

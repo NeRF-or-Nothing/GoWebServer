@@ -11,16 +11,19 @@ import (
 	"fmt"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
 )
 
 var (
+	// ErrUserNotFound is returned when a requested user is not found in the database.
 	ErrUserNotFound = errors.New("user not found")
+	// ErrUsernameTaken is returned when a username is already taken.
 	ErrUsernameTaken = errors.New("username is already taken")
+	// ErrUserNoAccess is returned when a user does not have access to a scene (i.e, scene ID not found in user's scene list).
 	ErrUserNoAccess = errors.New("user does not have access to this scene")
 )
 
@@ -114,7 +117,6 @@ func (um *UserManager) GetUserByID(ctx context.Context, userID primitive.ObjectI
 // GetUserByUsername retrieves a user from the database based on the given username.
 // Returns the User, nil if successful. Returns nil, error if the user is not found.
 func (um *UserManager) GetUserByUsername(ctx context.Context, username string) (*User, error) {
-	fmt.Println("UserManager.GetUserByUsername")
 	var user User
 	err := um.collection.FindOne(ctx, bson.M{"username": username}).Decode(&user)
 	if err != nil {
@@ -122,7 +124,6 @@ func (um *UserManager) GetUserByUsername(ctx context.Context, username string) (
 			fmt.Println("User not found")
 			return nil, ErrUserNotFound
 		}
-		fmt.Println("GetUserByUsername Error")
 		return nil, err
 	}
 
