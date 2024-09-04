@@ -1,4 +1,5 @@
 This is the portion of the VidToNerf backend responsible for HTTP communication, worker job delegation, and database management.
+This is a rewrite of the python flask webserver with expanded functionality.
 
 # Getting Started
 We are always looking for help to improve NeRF-or-Nothing!
