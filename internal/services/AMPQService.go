@@ -239,22 +239,22 @@ func (s *AMPQService) PublishSFMJob(ctx context.Context, scene *scene.Scene) err
 // The expected message format is:
 //
 //	{
-//		    "id": string (primitive.ObjectID.Hex()),
-//		    "vid_width": int,
-//		    "vid_height": int,
-//		    "sfm": {
-//		        "intrinsic_matrix": [[float64]] 3x3,
-//		        "frames": [
-//		            {
-//		                "file_path": string (url),
-//		                "extrinsic_matrix": [[float64]] 4x4
-//		            },
-//		            ...
-//		        ],
-//		        "white_background": bool
-//		    },
-//		    "flag": someInt
-//		}
+//  	"id": string (primitive.ObjectID.Hex()),
+//  	"vid_width": int,
+//  	"vid_height": int,
+//  	"sfm": {
+//  	    "intrinsic_matrix": [[float64]] 3x3,
+//  	    "frames": [
+//  	        {
+//  	            "file_path": string (url),
+//  	            "extrinsic_matrix": [[float64]] 4x4
+//  	        },
+//  	        ...
+//  	    ],
+//  	    "white_background": bool
+//  	},
+//  	"flag": someInt
+//	}
 func (s *AMPQService) processSFMJob(d amqp.Delivery) error {
 	type SfmWorkerData struct {
 		SceneID   string    `json:"id"`
@@ -431,18 +431,18 @@ func (s *AMPQService) PublishNERFJob(ctx context.Context, scene *scene.Scene) er
 // The expected message format is:
 //
 //	{
-//		    "id": string (primitive.ObjectID.Hex()),
-//		    "file_paths": {
-//		        "typeA": {
-//		            int (iteration): string (url),
-//					 ...
-//		        },
-//		        "typeB": {
-//					...
-//		        },
-//		        ...
-//		    }
+//	    "id": string (primitive.ObjectID.Hex()),
+//	    "file_paths": {
+//	        "typeA": {
+//	            int (iteration): string (url),
+//				 ...
+//	        },
+//	        "typeB": {
+//				...
+//	        },
+//	        ...
 //		}
+//	}
 func (s *AMPQService) processNERFJob(msg amqp.Delivery) error {
 	type IterationPaths map[int]string
 	type FilePaths map[string]IterationPaths
