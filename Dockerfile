@@ -19,8 +19,6 @@ COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -o /go-web-server ./cmd/main
-    # go build -gcflags="all=-N -l" -o /go-web-server ./cmd/main
-
 
 # RUN STAGE
 FROM alpine:3.20
@@ -29,11 +27,7 @@ WORKDIR /app
 
 COPY --from=builder /go-web-server .
 COPY secrets ./secrets
-# COPY data ./data
 
 EXPOSE 5000
-
-# For debugging
-ENV GOTRACEBACK=crash
 
 CMD ["./go-web-server"]
