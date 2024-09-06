@@ -28,7 +28,7 @@ Make sure you have the following installed and running on their respective URLs.
    ```
 
 2. Set up your environment variables:
-   Create a `.env` file in the project root and add the following:
+   Create a `.env` file in `./secrets` and add the following:
    ```
    MONGO_INITDB_ROOT_USERNAME=your_mongodb_username
    MONGO_INITDB_ROOT_PASSWORD=your_mongodb_password
@@ -36,6 +36,7 @@ Make sure you have the following installed and running on their respective URLs.
    RABBITMQ_DEFAULT_PASS=your_rabbitmq_password
    JWT_SECRET=your_jwt_secret
    ```
+   (Psst, our code should be resistent to ENV vars passed from overarching docker compose and those locally defined, but precedence goes to compose)
 
 ## On a container (Docker):
 Make sure you have the following installed:
