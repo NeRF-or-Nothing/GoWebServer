@@ -23,8 +23,8 @@ import (
 	"github.com/golang-jwt/jwt"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/services"
+	"github.com/NeRF-or-Nothing/go-web-server/internal/services"
+	"github.com/NeRF-or-Nothing/go-web-server/internal/log"
 )
 
 type WebServer struct {

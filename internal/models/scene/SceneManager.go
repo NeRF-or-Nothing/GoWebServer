@@ -13,7 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/NeRF-or-Nothing/VidGoNerf/webserver/internal/log"
+	"github.com/NeRF-or-Nothing/go-web-server/internal/log"
 )
 
 // Custom errors
