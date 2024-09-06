@@ -12,6 +12,11 @@ Most of our services are expected to run in their own docker container, this inc
 If you want to contribute to the code base, we suggest reading the [Wiki](https://github.com/NeRF-or-Nothing/GoWebServer/wiki) First, and then diving deeper into the go doc's and code base.
 
 # Running the Server
+
+## Note: It's recommended to instead follow the run instructions for the [Complete Backend](https://github.com/NeRF-or-Nothing/vidtonerf) 
+
+## However, if you want to run the server standalone:
+
 Make sure you have the following installed and running on their respective URLs.
 - MongoDB
 - RabbitMQ
@@ -36,7 +41,7 @@ Make sure you have the following installed and running on their respective URLs.
 Make sure you have the following installed:
 - Docker
 
-3. Build the and run image
+3. Build and run the image
   ```
   docker build -t web-server
   docker run web-server
