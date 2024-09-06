@@ -24,7 +24,7 @@ Make sure you have the following installed and running on their respective URLs.
 1. Clone the repository:
    ```
    git clone https://github.com/NeRF-or-Nothing/go-web-server.git
-   cd VidGoNerf
+   cd go-web-server
    ```
 
 2. Set up your environment variables:
