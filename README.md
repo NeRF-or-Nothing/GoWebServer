@@ -59,12 +59,12 @@ Make sure you have the following installed:
 
 4. Build the project:
    ```
-   go build ./cmd/webserver
+   go build ./cmd/main
    ```
 
 5. Run the server:
    ```
-   ./webserver
+   ./main
    ```
 
 # Contributing / Quick-Start
